@@ -1,4 +1,6 @@
 import { create } from "zustand"
+import { useProjectStore } from "./store";
+const projectId = useProjectStore.getState().projectId;
 
 interface EnabledComponents {
   solar_pv: boolean
@@ -24,8 +26,9 @@ interface SystemConfigStore {
   resetConfig: () => void
 }
 
+//should be replaced with the actual project ID from the previous step
 const initialConfig: SystemConfig = {
-  project_id: "abc123", // This would normally come from the previous step
+  project_id: projectId || "", // Use the project ID from the store or a default value
   enabled_components: {
     solar_pv: true,
     wind_turbine: false,

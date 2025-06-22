@@ -1,4 +1,5 @@
 import { create } from "zustand"
+import { persist } from "zustand/middleware"
 
 interface Location {
   latitude: number
@@ -13,12 +14,14 @@ interface ProjectData {
   time_resolution: string
   seasonality_enabled: boolean
   seasonality_option: string
+  typical_profile: string
 }
 
 interface ProjectStore {
+  projectId: string | null
   projectData: ProjectData
+  setProjectId: (id: string) => void
   updateProjectData: (data: Partial<ProjectData>) => void
-  submitProject: () => Promise<void>
   resetProject: () => void
 }
 
@@ -30,43 +33,48 @@ const initialProjectData: ProjectData = {
     longitude: 41.11023900111167,
   },
   time_horizon: 20,
-  time_resolution: "hours",
+  time_resolution: "hourly",
   seasonality_enabled: false,
   seasonality_option: "2 seasons",
+  typical_profile: "day",
 }
 
-export const useProjectStore = create<ProjectStore>((set, get) => ({
-  projectData: initialProjectData,
+export const useProjectStore = create<ProjectStore>()(
+  persist(
+    (set, get) => ({
+      projectId: null,
+      projectData: initialProjectData,
 
-  updateProjectData: (data) =>
-    set((state) => ({
-      projectData: {
-        ...state.projectData,
-        ...data,
-        // Handle nested location object separately
-        location: {
-          ...state.projectData.location,
-          ...(data.location || {}),
-        },
+      setProjectId: (id) => {
+        console.log("📦 STORE - Setting project ID:", id)
+        set({ projectId: id })
       },
-    })),
 
-  submitProject: async () => {
-    const { projectData } = get()
+      updateProjectData: (data) => {
+        console.log("📦 STORE - Updating project data with:", data)
+        set((state) => {
+          const newData = {
+            projectData: {
+              ...state.projectData,
+              ...data,
+              location: {
+                ...state.projectData.location,
+                ...(data.location || {}),
+              },
+            },
+          }
+          console.log("📦 STORE - New project data:", newData.projectData)
+          return newData
+        })
+      },
 
-    try {
-      // In a real app, this would be an API call
-      console.log("Submitting project data:", projectData)
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      return Promise.resolve()
-    } catch (error) {
-      console.error("Error submitting project:", error)
-      return Promise.reject(error)
-    }
-  },
-
-  resetProject: () => set({ projectData: initialProjectData }),
-}))
+      resetProject: () => {
+        console.log("📦 STORE - Resetting project")
+        set({ projectId: null, projectData: initialProjectData })
+      },
+    }),
+    {
+      name: "autarky-project-store",
+    },
+  ),
+)

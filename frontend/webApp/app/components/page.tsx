@@ -6,37 +6,37 @@ export default function ComponentsPage() {
   const components = [
     {
       title: "Solar PV",
-      icon: "☀️",
+      icon: "/Icons/solar-panel.svg",
       description:
         "Autarky accepts per-unit electricity production time series, inverter efficiency, and techno-economic parameters for investment and O&M. It integrates with the PVGIS API to automatically generate high-resolution production profiles based on GPS location, tilt, and orientation.",
     },
     {
       title: "Wind Turbine",
-      icon: "🌪️",
+      icon: "/Icons/wind-power.svg",
       description:
         "Autarky accepts per-unit electricity production time series, wind turbine efficiency, and techno-economic parameters for investment and O&M. It integrates with the PVGIS API to retrieve wind speed data based on GPS location, which is then converted to electricity production using a default or custom wind turbine power curve.",
     },
     {
       title: "Small Hydro",
-      icon: "⚡",
+      icon: "/Icons/hydro.svg",
       description:
         "Autarky accepts per-unit electricity production time series, turbine-generator efficiency, and techno-economic parameters for investment and O&M. For small hydro systems, such as run-of-the-river plants, calculations are based on water flow time series and key parameters including head height.",
     },
     {
       title: "Battery",
-      icon: "🔋",
+      icon: "/Icons/accumulator.svg",
       description:
         "Autarky models battery storage using a linear approach: key parameters such as depth of discharge (DoD), round-trip efficiency, nominal capacity, and techno-economic costs for investment, O&M, and replacements.",
     },
     {
       title: "Backup Generator",
-      icon: "🔧",
+      icon: "/Icons/generator.svg",
       description:
         "Autarky supports backup generation using diesel or biomass generators, modeled through user-defined techno-economic parameters such as fuel type, efficiency, investment and O&M costs, fuel price, and emissions.",
     },
     {
       title: "Main Grid Connection",
-      icon: "🏗️",
+      icon: "/Icons/power.svg",
       description:
         "Autarky can be configured to model decentralized energy systems with a grid connection. In contexts where the grid is unreliable, user can input the average daily outage duration, while the program automatically handles the uncertainty in outage frequency.",
     },
@@ -93,7 +93,19 @@ export default function ComponentsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
           {components.map((component, index) => (
             <div key={index} className="flex gap-4 p-6 border rounded-lg">
-              <div className="text-4xl">{component.icon}</div>
+              <div className="flex-shrink-0">
+                {component.icon.endsWith(".svg") ? (
+                  <Image
+                    src={component.icon}
+                    alt={component.title}
+                    width={40}
+                    height={40}
+                    className="h-10 w-10"
+                  />
+                ) : (
+                  <span className="text-4xl">{component.icon}</span>
+                )}
+              </div>
               <div className="flex-1">
                 <h3 className="text-xl font-bold mb-3">{component.title}</h3>
                 <p className="text-sm text-gray-700 leading-relaxed">
