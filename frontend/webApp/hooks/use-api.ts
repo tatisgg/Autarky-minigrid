@@ -31,17 +31,17 @@ export function useProjectSetup() {
         throw error
       }
     },
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       console.log("🎯 useProjectSetup - onSuccess called with:", data)
       if (data.project_id) {
-        console.log("🎯 useProjectSetup - Setting project ID:", data.project_id)
-        setProjectId(data.project_id)
+      console.log("🎯 useProjectSetup - Setting project ID:", data.project_id)
+      setProjectId(data.project_id)
       } else {
-        console.warn("🎯 useProjectSetup - No project_id in response:", data)
+      console.warn("🎯 useProjectSetup - No project_id in response:", data)
       }
       queryClient.invalidateQueries({ queryKey: ["project"] })
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       console.error("🎯 useProjectSetup - onError called with:", error)
     },
   })
@@ -50,8 +50,24 @@ export function useProjectSetup() {
 export function useSystemConfiguration() {
   const queryClient = useQueryClient()
 
-  return useMutation({
-    mutationFn: async (data: any) => {
+  interface SystemConfigurationData {
+    // Define the expected shape of the input data here
+    // Example:
+    // configName: string;
+    // parameters: Record<string, any>;
+    [key: string]: any;
+  }
+
+  interface SystemConfigurationResponse {
+    // Define the expected shape of the response here
+    // Example:
+    // success: boolean;
+    // message?: string;
+    [key: string]: any;
+  }
+
+  return useMutation<SystemConfigurationResponse, unknown, SystemConfigurationData>({
+    mutationFn: async (data: SystemConfigurationData) => {
       console.log("🎯 useSystemConfiguration - Starting mutation with data:", data)
       try {
         const result = await api.systemConfiguration(data)
@@ -62,11 +78,11 @@ export function useSystemConfiguration() {
         throw error
       }
     },
-    onSuccess: (data) => {
+    onSuccess: (data: SystemConfigurationResponse) => {
       console.log("🎯 useSystemConfiguration - onSuccess:", data)
       queryClient.invalidateQueries({ queryKey: ["system-configuration"] })
     },
-    onError: (error) => {
+    onError: (error: unknown) => {
       console.error("🎯 useSystemConfiguration - onError:", error)
     },
   })

@@ -18,7 +18,10 @@ import {
 } from "@/components/ui/select";
 import { useProjectStore } from "@/lib/store";
 import { useProjectSetup } from "@/hooks/use-api";
-import MapComponent from "@/components/map-component";
+import dynamic from "next/dynamic";
+const MapComponent = dynamic(() => import("@/components/map-component"), {
+  ssr: false,
+});
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 

@@ -100,8 +100,16 @@ export const api = {
       return responseData
     } catch (error) {
       console.error("🔥 PROJECT SETUP FETCH ERROR:")
-      console.error("Error Type:", error.constructor.name)
-      console.error("Error Message:", error.message)
+      if (typeof error === "object" && error !== null && "constructor" in error && typeof (error as any).constructor?.name === "string") {
+        console.error("Error Type:", (error as any).constructor.name)
+      } else {
+        console.error("Error Type: unknown")
+      }
+      if (typeof error === "object" && error !== null && "message" in error && typeof (error as any).message === "string") {
+        console.error("Error Message:", (error as any).message)
+      } else {
+        console.error("Error Message:", String(error))
+      }
       console.error("Full Error:", error)
 
       // Check if it's a network error
@@ -110,7 +118,7 @@ export const api = {
       }
 
       // Check if it's a CORS error
-      if (error.message.includes("CORS")) {
+      if (typeof error === "object" && error !== null && "message" in error && typeof (error as any).message === "string" && (error as any).message.includes("CORS")) {
         throw new Error("CORS error: The server is not allowing requests from this domain.")
       }
 

@@ -413,7 +413,7 @@ export default function RenewablePotentialPage() {
                   <div>
                     <p className="text-gray-700 mb-4">{current.description}</p>
                     <input
-                      ref={(el) => (fileInputRefs.current[currentComponent] = el)}
+                      ref={el => { fileInputRefs.current[currentComponent] = el; }}
                       type="file"
                       accept=".csv"
                       onChange={(e) => handleFileUpload(e, current.tech_key)}
