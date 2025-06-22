@@ -17,19 +17,21 @@ import {
 } from "@/components/ui/tooltip";
 import { Upload, Info } from "lucide-react";
 import Image from "next/image";
+import { useModelUncertainties } from "@/hooks/use-api";
+import { useProjectStore } from "@/lib/store";
 
 export default function ModelUncertaintiesPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [selectedModel, setSelectedModel] = useState("linear");
-  const [parameters, setParameters] = useState({
-    expectedOutageFrequency: "",
-    expectedOutageDuration: "",
-    probabilityModel: "ICC",
-    probabilityOfOutage: "",
-    probabilityOfIslanding: "",
-  });
   const [isClient, setIsClient] = useState(false);
+  const [selectedModel, setSelectedModel] = useState("linear");
+  const [gridConnected, setGridConnected] = useState(false);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+
+  const projectId = useProjectStore((state) => state.projectId);
+
+  // API mutation
+  const mutation = useModelUncertainties();
 
   useEffect(() => {
     setIsClient(true);
@@ -38,38 +40,48 @@ export default function ModelUncertaintiesPage() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file && file.type === "text/csv") {
-      console.log("Grid availability matrix uploaded:", file.name);
+      setUploadedFile(file);
+      setGridConnected(true); // If uploading grid availability, assume grid connected
     }
-  };
-
-  const handleParameterChange = (key: string, value: string) => {
-    setParameters((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
   };
 
   const handleSubmit = async () => {
-    try {
-      const response = await fetch("/api/model-uncertainties", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          project_id: "abc123",
-          selected_model: selectedModel,
-          parameters: parameters,
-        }),
-      });
-
-      if (response.ok) {
-        console.log("Model uncertainties submitted successfully");
-        // Navigate to results or final page
-      }
-    } catch (error) {
-      console.error("Error submitting model uncertainties:", error);
+    if (!projectId) {
+      alert("Project ID is missing.");
+      return;
     }
+
+    // Validation
+    if (selectedModel === "linear" && gridConnected && !uploadedFile) {
+      alert(
+        "Please upload a grid availability CSV file for grid-connected linear model."
+      );
+      return;
+    }
+
+    const payload: any = {
+      project_id: projectId,
+      formulation: selectedModel,
+      grid_connected: gridConnected,
+    };
+
+    // Add grid availability CSV if uploaded (future implementation)
+    if (uploadedFile) {
+      // payload.grid_availability_csv = uploadedFile; // This would be handled differently in real implementation
+    }
+
+    mutation.mutate(payload, {
+      onSuccess: () => {
+        router.push("/optimize"); // Go to the new optimize page
+      },
+      onError: (error: any) => {
+        console.error("API Error:", error);
+        alert(
+          "Failed to submit model uncertainties: " +
+            (error?.message || "Unknown error")
+        );
+      },
+    });
   };
 
   if (!isClient) {
@@ -83,13 +95,13 @@ export default function ModelUncertaintiesPage() {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center space-x-2">
             <div className="">
-               <Image
+              <Image
                 src="/Asset2.svg"
                 alt="Autarky Logo"
                 width={40}
                 height={40}
                 className="h-10 w-10 "
-               />
+              />
             </div>
             <span className="text-xl font-bold text-black">Autarky</span>
           </div>
@@ -138,21 +150,15 @@ export default function ModelUncertaintiesPage() {
           <div className="space-y-6">
             <RadioGroup value={selectedModel} onValueChange={setSelectedModel}>
               {/* Linear Model */}
-              <div
-                className={`border rounded-lg p-6 ${
-                  selectedModel === "linear"
-                    ? "bg-blue-50 border-blue-200"
-                    : "bg-white"
-                }`}
-              >
-                <div className="flex items-center space-x-2 mb-3">
+              <div className="border rounded-lg p-6 bg-blue-50 border-blue-200">
+                <div className="flex items-center space-x-3">
                   <RadioGroupItem value="linear" id="linear" />
                   <Label htmlFor="linear" className="text-lg font-medium">
                     Use Autarky{" "}
                     <span className="text-blue-600">Linear Model</span>
                   </Label>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-600 mt-3 ml-7">
                   The linear model uses a grid availability matrix to capture
                   deterministic limitations in grid connection, without modeling
                   randomness.
@@ -160,21 +166,20 @@ export default function ModelUncertaintiesPage() {
               </div>
 
               {/* Expected Values Model */}
-              <div
-                className={`border rounded-lg p-6 ${
-                  selectedModel === "expected"
-                    ? "bg-blue-50 border-blue-200"
-                    : "bg-white"
-                }`}
-              >
-                <div className="flex items-center space-x-2 mb-3">
-                  <RadioGroupItem value="expected" id="expected" />
-                  <Label htmlFor="expected" className="text-lg font-medium">
+              <div className="border rounded-lg p-6 bg-gray-50 border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <RadioGroupItem value="expected" id="expected" disabled />
+                  <Label
+                    htmlFor="expected"
+                    className="text-lg font-medium text-gray-400"
+                  >
                     Use Autarky{" "}
-                    <span className="text-blue-600">Expected Values Model</span>
+                    <span className="text-purple-400">
+                      Expected Values Model
+                    </span>
                   </Label>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-400 mt-3 ml-7">
                   The expected-value model incorporates forecast errors for
                   renewable production and demand by replacing random variables
                   with their expected values, simplifying the problem but
@@ -182,27 +187,25 @@ export default function ModelUncertaintiesPage() {
                 </p>
               </div>
 
-              {/* Advanced Probabilistic Models */}
-              <div
-                className={`border rounded-lg p-6 ${
-                  selectedModel === "probabilistic"
-                    ? "bg-blue-50 border-blue-200"
-                    : "bg-white"
-                }`}
-              >
-                <div className="flex items-center space-x-2 mb-3">
-                  <RadioGroupItem value="probabilistic" id="probabilistic" />
+              {/* Advanced Probabilistic Model */}
+              <div className="border rounded-lg p-6 bg-gray-50 border-gray-200">
+                <div className="flex items-center space-x-3">
+                  <RadioGroupItem
+                    value="probabilistic"
+                    id="probabilistic"
+                    disabled
+                  />
                   <Label
                     htmlFor="probabilistic"
-                    className="text-lg font-medium"
+                    className="text-lg font-medium text-gray-400"
                   >
                     Use Autarky{" "}
-                    <span className="text-blue-600">
+                    <span className="text-purple-400">
                       Advanced Probabilistic Models
                     </span>
                   </Label>
                 </div>
-                <p className="text-sm text-gray-600">
+                <p className="text-sm text-gray-400 mt-3 ml-7">
                   Advanced probabilistic models apply individual (ICC) or joint
                   chance constraints (JCC) to account for forecasting errors and
                   main grid outages, explicitly incorporating the probability of
@@ -215,216 +218,52 @@ export default function ModelUncertaintiesPage() {
 
           {/* Right Column - Parameters */}
           <div className="space-y-6">
-            {selectedModel === "linear" && (
-              <div className="border rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium">
-                    Upload Grid Availability matrix
-                  </h3>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-4 w-4 text-gray-400" />
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>
-                          CSV file containing grid availability data over time
-                        </p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".csv"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  variant="outline"
-                  className="w-full flex items-center justify-center space-x-2"
-                >
-                  <Upload className="w-4 h-4" />
-                  <span>Upload CSV file</span>
-                </Button>
+            <div className="border rounded-lg p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium">
+                  Upload Grid Availability matrix
+                </h3>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Info className="h-4 w-4 text-gray-400" />
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>
+                        CSV file containing grid availability data over time
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
-            )}
 
-            {selectedModel === "expected" && (
-              <div className="border rounded-lg p-6 space-y-4">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="outage-frequency">
-                      Expected outage frequency:
-                    </Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-gray-400" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Average number of grid outages per time period</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Input
-                    id="outage-frequency"
-                    type="number"
-                    value={parameters.expectedOutageFrequency}
-                    onChange={(e) =>
-                      handleParameterChange(
-                        "expectedOutageFrequency",
-                        e.target.value
-                      )
-                    }
-                    className="mt-1"
-                  />
-                </div>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv"
+                onChange={handleFileUpload}
+                className="hidden"
+              />
 
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="outage-duration">
-                      Expected outage duration:
-                    </Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-gray-400" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>Average duration of each grid outage</p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Input
-                    id="outage-duration"
-                    type="number"
-                    value={parameters.expectedOutageDuration}
-                    onChange={(e) =>
-                      handleParameterChange(
-                        "expectedOutageDuration",
-                        e.target.value
-                      )
-                    }
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            )}
+              <Button
+                variant="outline"
+                className="w-full flex items-center justify-center space-x-2"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="w-4 h-4" />
+                <span>
+                  {uploadedFile
+                    ? `Uploaded: ${uploadedFile.name}`
+                    : "Upload CSV file"}
+                </span>
+              </Button>
 
-            {selectedModel === "probabilistic" && (
-              <div className="border rounded-lg p-6 space-y-4">
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label>Probability model:</Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-gray-400" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>
-                            Choose between Individual (ICC) or Joint (JCC)
-                            chance constraints
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <RadioGroup
-                    value={parameters.probabilityModel}
-                    onValueChange={(value) =>
-                      handleParameterChange("probabilityModel", value)
-                    }
-                    className="flex space-x-6"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="ICC" id="icc" />
-                      <Label htmlFor="icc">ICC</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="JCC" id="jcc" />
-                      <Label htmlFor="jcc">JCC</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="probability-outage">
-                      Probability of outage:
-                    </Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-gray-400" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>
-                            Probability that the grid will experience an outage
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Input
-                    id="probability-outage"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    value={parameters.probabilityOfOutage}
-                    onChange={(e) =>
-                      handleParameterChange(
-                        "probabilityOfOutage",
-                        e.target.value
-                      )
-                    }
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="probability-islanding">
-                      Probability of islanding:
-                    </Label>
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Info className="h-4 w-4 text-gray-400" />
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p>
-                            Probability that the system can successfully operate
-                            in island mode
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  </div>
-                  <Input
-                    id="probability-islanding"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    max="1"
-                    value={parameters.probabilityOfIslanding}
-                    onChange={(e) =>
-                      handleParameterChange(
-                        "probabilityOfIslanding",
-                        e.target.value
-                      )
-                    }
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-            )}
+              {uploadedFile && (
+                <p className="text-sm text-green-600 mt-2">
+                  ✓ Grid availability file uploaded successfully
+                </p>
+              )}
+            </div>
           </div>
         </div>
 
@@ -438,8 +277,9 @@ export default function ModelUncertaintiesPage() {
           <Button
             onClick={handleSubmit}
             className="bg-black hover:bg-gray-800 text-white px-8 py-2"
+            disabled={mutation.isLoading}
           >
-            Complete Setup
+            {mutation.isLoading ? "Submitting..." : "Next"}
           </Button>
         </div>
       </main>

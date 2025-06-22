@@ -1,5 +1,6 @@
 import { create } from "zustand"
-
+import { useProjectStore } from "./store";
+const projectId = useProjectStore.getState().projectId;
 // Define types for each component's parameters
 interface ProjectEconomicSettings {
   discount_rate: number
@@ -74,7 +75,7 @@ interface TechParamsStore {
 
 // Default values
 const initialParams: TechnologyParameters = {
-  project_id: "abc123", // This would normally come from the previous step
+  project_id: projectId || "",
   project_economic_settings: {
     discount_rate: 6.5,
     currency: "USD",

@@ -1,22 +1,26 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import Link from "next/link"
-import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Switch } from "@/components/ui/switch"
-import { Label } from "@/components/ui/label"
-import { useSystemConfigStore } from "@/lib/system-config-store"
-import { ChevronLeft, ChevronRight } from "lucide-react"
-import LayoutDiagram from "@/components/layout-diagram"
-import Image from "next/image"
+import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { useSystemConfigStore } from "@/lib/system-config-store";
+import { useProjectStore } from "@/lib/store";
+import { useSystemConfiguration } from "@/hooks/use-api";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import LayoutDiagram from "@/components/layout-diagram";
+import Image from "next/image";
 
 export default function SystemConfigurationPage() {
-  const router = useRouter()
-  const { config, updateConfig, submitConfig } = useSystemConfigStore()
-  const [currentLayoutIndex, setCurrentLayoutIndex] = useState(0)
-  const [availableLayouts, setAvailableLayouts] = useState<any[]>([])
-  const [isClient, setIsClient] = useState(false)
+  const router = useRouter();
+  const { config, updateConfig } = useSystemConfigStore();
+  const { projectId } = useProjectStore();
+  const systemConfigMutation = useSystemConfiguration();
+  const [currentLayoutIndex, setCurrentLayoutIndex] = useState(0);
+  const [availableLayouts, setAvailableLayouts] = useState<any[]>([]);
+  const [isClient, setIsClient] = useState(false);
 
   // Define all possible layouts
   const allLayouts = [
@@ -115,53 +119,68 @@ export default function SystemConfigurationPage() {
       name: "Solar + Biogas + Grid + Battery + AC Load",
       description:
         "Solar and biogas feed a battery that supplies AC load via an inverter. Grid acts as a backup or peak provider. Fully renewable primary generation, with grid support.",
-      components: ["solar_pv", "biogas_generator", "grid_connection", "battery"],
+      components: [
+        "solar_pv",
+        "biogas_generator",
+        "grid_connection",
+        "battery",
+      ],
       requires_ac: true,
       requires_grid: true,
     },
     {
       id: 12,
       name: "Solar + Diesel + AC Load (No battery)",
-      description: "Solar PV covers daytime loads, diesel handles evening peaks. Simplified system without storage.",
+      description:
+        "Solar PV covers daytime loads, diesel handles evening peaks. Simplified system without storage.",
       components: ["solar_pv", "diesel_generator"],
       requires_ac: true,
       requires_grid: false,
     },
-  ]
+  ];
 
   useEffect(() => {
-    setIsClient(true)
-  }, [])
+    setIsClient(true);
+  }, []);
 
   // Filter layouts based on selected components
   useEffect(() => {
     const enabledComponents = Object.entries(config.enabled_components)
       .filter(([_, enabled]) => enabled)
-      .map(([component]) => component)
+      .map(([component]) => component);
 
     const filteredLayouts = allLayouts.filter((layout) => {
       // Check if all required components for this layout are enabled
-      const hasAllRequiredComponents = layout.components.every((component) => enabledComponents.includes(component))
+      const hasAllRequiredComponents = layout.components.every((component) =>
+        enabledComponents.includes(component)
+      );
 
       // Check if grid connection requirement matches
       const gridMatch =
         (layout.requires_grid && config.enabled_components.grid_connection) ||
-        (!layout.requires_grid && !config.enabled_components.grid_connection)
+        (!layout.requires_grid && !config.enabled_components.grid_connection);
 
       // Check if AC system requirement matches
-      const acMatch = (layout.requires_ac && config.enabled_components.fully_ac) || !layout.requires_ac
+      const acMatch =
+        (layout.requires_ac && config.enabled_components.fully_ac) ||
+        !layout.requires_ac;
 
-      return hasAllRequiredComponents && gridMatch && acMatch
-    })
+      return hasAllRequiredComponents && gridMatch && acMatch;
+    });
 
-    setAvailableLayouts(filteredLayouts.length > 0 ? filteredLayouts : allLayouts)
+    setAvailableLayouts(
+      filteredLayouts.length > 0 ? filteredLayouts : allLayouts
+    );
 
     // Reset current layout index if it's out of bounds
-    if (currentLayoutIndex >= filteredLayouts.length && filteredLayouts.length > 0) {
-      setCurrentLayoutIndex(0)
-      updateConfig({ layout_id: filteredLayouts[0].id })
+    if (
+      currentLayoutIndex >= filteredLayouts.length &&
+      filteredLayouts.length > 0
+    ) {
+      setCurrentLayoutIndex(0);
+      updateConfig({ layout_id: filteredLayouts[0].id });
     }
-  }, [config.enabled_components, currentLayoutIndex, updateConfig])
+  }, [config.enabled_components, currentLayoutIndex, updateConfig]);
 
   const handleComponentToggle = (component: string, enabled: boolean) => {
     updateConfig({
@@ -169,40 +188,53 @@ export default function SystemConfigurationPage() {
         ...config.enabled_components,
         [component]: enabled,
       },
-    })
-  }
+    });
+  };
 
   const handleSubmit = async () => {
-    try {
-      await submitConfig()
-      // Navigate to technology parameters page
-      router.push("/technology-parameters")
-    } catch (error) {
-      console.error("Error submitting system configuration:", error)
+    if (!projectId) {
+      console.error("No project ID found");
+      return;
     }
-  }
+
+    const submitData = {
+      project_id: projectId,
+      enabled_components: config.enabled_components,
+      layout_id: config.layout_id,
+    };
+
+    console.log("🔗 Submitting system configuration:", submitData);
+
+    try {
+      const response = await systemConfigMutation.mutateAsync(submitData);
+      console.log("✅ System configuration response:", response);
+      router.push("/technology-parameters");
+    } catch (error) {
+      console.error("❌ Error submitting system configuration:", error);
+    }
+  };
 
   const nextLayout = () => {
     if (currentLayoutIndex < availableLayouts.length - 1) {
-      const newIndex = currentLayoutIndex + 1
-      setCurrentLayoutIndex(newIndex)
-      updateConfig({ layout_id: availableLayouts[newIndex].id })
+      const newIndex = currentLayoutIndex + 1;
+      setCurrentLayoutIndex(newIndex);
+      updateConfig({ layout_id: availableLayouts[newIndex].id });
     }
-  }
+  };
 
   const prevLayout = () => {
     if (currentLayoutIndex > 0) {
-      const newIndex = currentLayoutIndex - 1
-      setCurrentLayoutIndex(newIndex)
-      updateConfig({ layout_id: availableLayouts[newIndex].id })
+      const newIndex = currentLayoutIndex - 1;
+      setCurrentLayoutIndex(newIndex);
+      updateConfig({ layout_id: availableLayouts[newIndex].id });
     }
-  }
+  };
 
   if (!isClient) {
-    return <div>Loading...</div>
+    return <div>Loading...</div>;
   }
 
-  const currentLayout = availableLayouts[currentLayoutIndex] || allLayouts[0]
+  const currentLayout = availableLayouts[currentLayoutIndex] || allLayouts[0];
 
   return (
     <div className="min-h-screen bg-white">
@@ -211,13 +243,13 @@ export default function SystemConfigurationPage() {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center space-x-2">
             <div className="">
-               <Image
+              <Image
                 src="/Asset2.svg"
                 alt="Autarky Logo"
                 width={40}
                 height={40}
                 className="h-10 w-10 "
-               />
+              />
             </div>
             <span className="text-xl font-bold text-black">Autarky</span>
           </div>
@@ -243,7 +275,10 @@ export default function SystemConfigurationPage() {
             <span className="text-sm text-gray-600">Step 2 of 5</span>
           </div>
           <div className="w-full bg-gray-200 rounded-full h-2">
-            <div className="bg-black h-2 rounded-full" style={{ width: "40%" }}></div>
+            <div
+              className="bg-black h-2 rounded-full"
+              style={{ width: "40%" }}
+            ></div>
           </div>
         </div>
       </div>
@@ -251,21 +286,26 @@ export default function SystemConfigurationPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
         <p className="text-lg mb-8 max-w-4xl">
-          Use the component toggles and design mode filters to define your system setup. Then choose from a set of
-          realistic, validated layouts to configure how the selected elements are connected through AC and/or DC buses
-          to meet your energy needs.
+          Use the component toggles and design mode filters to define your
+          system setup. Then choose from a set of realistic, validated layouts
+          to configure how the selected elements are connected through AC and/or
+          DC buses to meet your energy needs.
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Left Column - Layout Carousel */}
           <div>
             <h3 className="text-lg font-semibold mb-4">
-              Select from the available validated layouts below based on your chosen components and design filters.
+              Select from the available validated layouts below based on your
+              chosen components and design filters.
             </h3>
 
             <div className="relative border rounded-lg p-4 h-80 flex items-center justify-center mb-4 bg-white">
               {/* Layout Diagram */}
-              <LayoutDiagram layoutId={currentLayout.id} className="max-w-full max-h-full" />
+              <LayoutDiagram
+                layoutId={currentLayout.id}
+                className="max-w-full max-h-full"
+              />
 
               {/* Navigation Arrows */}
               <button
@@ -287,7 +327,9 @@ export default function SystemConfigurationPage() {
             {/* Layout Description */}
             <div className="border rounded-lg p-4 bg-gray-50">
               <h4 className="font-medium mb-2">{currentLayout.name}</h4>
-              <p className="text-sm text-gray-600">{currentLayout.description}</p>
+              <p className="text-sm text-gray-600">
+                {currentLayout.description}
+              </p>
             </div>
           </div>
 
@@ -301,101 +343,214 @@ export default function SystemConfigurationPage() {
             <div className="mb-6">
               <h4 className="font-medium mb-3">Renewables Technologies</h4>
               <div className="grid grid-cols-3 gap-4">
+                {/* Solar PV */}
                 <div
-                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer ${
-                    config.enabled_components.solar_pv ? "bg-amber-50 border-amber-200" : "bg-white"
-                  }`}
-                  onClick={() => handleComponentToggle("solar_pv", !config.enabled_components.solar_pv)}
+                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
+                    ${
+                      config.enabled_components.solar_pv
+                        ? "bg-yellow-100 border-yellow-300"
+                        : "bg-gray-100 border-gray-300 opacity-70"
+                    }`}
+                  onClick={() =>
+                    handleComponentToggle(
+                      "solar_pv",
+                      !config.enabled_components.solar_pv
+                    )
+                  }
                 >
-                  <div className="text-3xl mb-2">☀️</div>
+                  <div className="mb-2">
+                    <Image
+                      src="/Icons/solar-panel.svg"
+                      alt="Solar PV"
+                      width={40}
+                      height={40}
+                    />
+                  </div>
                   <span className="text-sm">Solar PV</span>
                 </div>
+                {/* Mini-Hydro */}
                 <div
-                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer ${
-                    config.enabled_components.mini_hydro ? "bg-blue-50 border-blue-200" : "bg-white"
-                  }`}
-                  onClick={() => handleComponentToggle("mini_hydro", !config.enabled_components.mini_hydro)}
+                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
+                    ${
+                      config.enabled_components.mini_hydro
+                        ? "bg-yellow-100 border-yellow-300"
+                        : "bg-gray-100 border-gray-300 opacity-70"
+                    }`}
+                  onClick={() =>
+                    handleComponentToggle(
+                      "mini_hydro",
+                      !config.enabled_components.mini_hydro
+                    )
+                  }
                 >
-                  <div className="text-3xl mb-2">⚡</div>
+                  <div className="mb-2">
+                    <Image
+                      src="/Icons/hydro.svg"
+                      alt="Mini-Hydro"
+                      width={40}
+                      height={40}
+                    />
+                  </div>
                   <span className="text-sm">Mini-Hydro</span>
                 </div>
+                {/* Wind Turbine */}
                 <div
-                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer ${
-                    config.enabled_components.wind_turbine ? "bg-blue-50 border-blue-200" : "bg-white"
-                  }`}
-                  onClick={() => handleComponentToggle("wind_turbine", !config.enabled_components.wind_turbine)}
+                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
+                    ${
+                      config.enabled_components.wind_turbine
+                        ? "bg-yellow-100 border-yellow-300"
+                        : "bg-gray-100 border-gray-300 opacity-70"
+                    }`}
+                  onClick={() =>
+                    handleComponentToggle(
+                      "wind_turbine",
+                      !config.enabled_components.wind_turbine
+                    )
+                  }
                 >
-                  <div className="text-3xl mb-2">🌪️</div>
+                  <div className="mb-2">
+                    <Image
+                      src="/Icons/wind-power.svg"
+                      alt="Wind Turbine"
+                      width={40}
+                      height={40}
+                    />
+                  </div>
                   <span className="text-sm">Wind Turbine</span>
                 </div>
               </div>
             </div>
 
             {/* Fuel Generators and Storage */}
-            <div className="grid grid-cols-2 gap-6 mb-6">
-              <div>
-                <h4 className="font-medium mb-3">Fuel Generators</h4>
-                <div className="grid grid-cols-2 gap-4">
-                  <div
-                    className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer ${
-                      config.enabled_components.diesel_generator ? "bg-gray-50 border-gray-300" : "bg-white"
-                    }`}
-                    onClick={() =>
-                      handleComponentToggle("diesel_generator", !config.enabled_components.diesel_generator)
-                    }
-                  >
-                    <div className="text-3xl mb-2">🔧</div>
-                    <span className="text-sm">Diesel</span>
-                  </div>
-                  <div
-                    className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer ${
-                      config.enabled_components.biogas_generator ? "bg-green-50 border-green-200" : "bg-white"
-                    }`}
-                    onClick={() =>
-                      handleComponentToggle("biogas_generator", !config.enabled_components.biogas_generator)
-                    }
-                  >
-                    <div className="text-3xl mb-2">🌱</div>
-                    <span className="text-sm">Biomass</span>
-                  </div>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="font-medium mb-3">Storage</h4>
-                <div
-                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer ${
-                    config.enabled_components.battery ? "bg-blue-50 border-blue-200" : "bg-white"
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              {/* Diesel */}
+              <div
+                className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
+                  ${
+                    config.enabled_components.diesel_generator
+                      ? "bg-yellow-100 border-yellow-300"
+                      : "bg-gray-100 border-gray-300 opacity-70"
                   }`}
-                  onClick={() => handleComponentToggle("battery", !config.enabled_components.battery)}
-                >
-                  <div className="text-3xl mb-2">🔋</div>
-                  <span className="text-sm">Battery</span>
+                onClick={() =>
+                  handleComponentToggle(
+                    "diesel_generator",
+                    !config.enabled_components.diesel_generator
+                  )
+                }
+              >
+                <div className="mb-2">
+                  <Image
+                    src="/Icons/generator.svg"
+                    alt="Diesel"
+                    width={40}
+                    height={40}
+                  />
                 </div>
+                <span className="text-sm">Diesel</span>
+              </div>
+              {/* Biomass */}
+              <div
+                className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
+                  ${
+                    config.enabled_components.biogas_generator
+                      ? "bg-yellow-100 border-yellow-300"
+                      : "bg-gray-100 border-gray-300 opacity-70"
+                  }`}
+                onClick={() =>
+                  handleComponentToggle(
+                    "biogas_generator",
+                    !config.enabled_components.biogas_generator
+                  )
+                }
+              >
+                <div className="mb-2">
+                  <Image
+                    src="/Icons/biogas.svg"
+                    alt="Biomass"
+                    width={40}
+                    height={40}
+                  />
+                </div>
+                <span className="text-sm">Biomass</span>
+              </div>
+              {/* Battery */}
+              <div
+                className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
+                  ${
+                    config.enabled_components.battery
+                      ? "bg-yellow-100 border-yellow-300"
+                      : "bg-gray-100 border-gray-300 opacity-70"
+                  }`}
+                onClick={() =>
+                  handleComponentToggle(
+                    "battery",
+                    !config.enabled_components.battery
+                  )
+                }
+              >
+                <div className="mb-2">
+                  <Image
+                    src="/Icons/accumulator.svg"
+                    alt="Battery"
+                    width={40}
+                    height={40}
+                  />
+                </div>
+                <span className="text-sm">Battery</span>
               </div>
             </div>
 
             {/* System Toggles */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              {/* Main Grid Connection */}
+              <div className="flex items-center gap-2">
                 <Label htmlFor="grid-connection" className="cursor-pointer">
                   Main Grid Connection
                 </Label>
                 <Switch
                   id="grid-connection"
                   checked={config.enabled_components.grid_connection}
-                  onCheckedChange={(checked) => handleComponentToggle("grid_connection", checked)}
+                  onCheckedChange={(checked) =>
+                    handleComponentToggle("grid_connection", checked)
+                  }
                 />
+                {/* Info icon with tooltip */}
+                <span className="relative group cursor-pointer ml-1">
+                  <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-center leading-5 font-bold">
+                    i
+                  </span>
+                  <span className="absolute left-1/2 z-10 -translate-x-1/2 mt-2 w-72 p-2 rounded bg-black text-white text-xs opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                    Models the link between the local energy system and the
+                    central power grid. This enables scenarios such as weak grid
+                    connections, grid imports during shortages, or electricity
+                    export if allowed.
+                  </span>
+                </span>
               </div>
-              <div className="flex items-center justify-between">
+              {/* Fully AC System */}
+              <div className="flex items-center gap-2">
                 <Label htmlFor="fully-ac" className="cursor-pointer">
                   Fully AC System
                 </Label>
                 <Switch
                   id="fully-ac"
                   checked={config.enabled_components.fully_ac}
-                  onCheckedChange={(checked) => handleComponentToggle("fully_ac", checked)}
+                  onCheckedChange={(checked) =>
+                    handleComponentToggle("fully_ac", checked)
+                  }
                 />
+                {/* Info icon with tooltip */}
+                <span className="relative group cursor-pointer ml-1">
+                  <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-center leading-5 font-bold">
+                    i
+                  </span>
+                  <span className="absolute left-1/2 z-10 -translate-x-1/2 mt-2 w-72 p-2 rounded bg-black text-white text-xs opacity-0 group-hover:opacity-100 transition pointer-events-none">
+                    Indicates that the mini-grid is AC-coupled. This affects
+                    component selection and layout by requiring specific
+                    inverters and grid-compatible connections. It assumes all
+                    energy flows are managed on an AC bus.
+                  </span>
+                </span>
               </div>
             </div>
           </div>
@@ -408,11 +563,31 @@ export default function SystemConfigurationPage() {
               Back
             </Button>
           </Link>
-          <Button onClick={handleSubmit} className="bg-black hover:bg-gray-800 text-white px-8 py-2">
-            Next
+          <Button
+            onClick={handleSubmit}
+            disabled={systemConfigMutation.isPending || !projectId}
+            className="bg-black hover:bg-gray-800 text-white px-8 py-2"
+          >
+            {systemConfigMutation.isPending ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              "Next"
+            )}
           </Button>
         </div>
+
+        {/* Error Message */}
+        {systemConfigMutation.error && (
+          <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-600">
+              Error: {systemConfigMutation.error.message}
+            </p>
+          </div>
+        )}
       </main>
     </div>
-  )
+  );
 }
