@@ -18,6 +18,7 @@ import { useTechParamsStore } from "@/lib/tech-params-store";
 import { useSystemConfigStore } from "@/lib/system-config-store";
 import Image from "next/image";
 import { Info } from "lucide-react";
+import { useTechnologyParameters } from "@/hooks/use-api";
 
 // Add or update your types at the top of your file or import them from your store
 type DieselGeneratorParams = {
@@ -113,16 +114,16 @@ type Params = {
 };
 
 export default function TechnologyParametersPage() {
-    const { projectId } = useProjectStore();
+  const { projectId } = useProjectStore();
   const router = useRouter();
   const {
     params,
     updateEconomicSettings,
     updateComponentParams,
     selectComponent,
-    submitParams,
   } = useTechParamsStore();
   const { config } = useSystemConfigStore();
+  const mutation = useTechnologyParameters();
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -131,20 +132,56 @@ export default function TechnologyParametersPage() {
     setIsClient(true);
   }, []);
 
-  const handleSubmit = async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      console.log("Submitting technology parameters:", params);
-      await submitParams();
-      console.log("✅ Technology parameters submitted successfully");
-      router.push("/load-demand");
-    } catch (error) {
-      setError("Error submitting technology parameters");
-      console.error("❌ Error submitting technology parameters:", error);
-    } finally {
-      setIsLoading(false);
+  // Only include enabled and filled technology parameters
+  const getEnabledTechParams = () => {
+    const enabled = Object.entries(config.enabled_components)
+      .filter(([_, enabled]) => enabled)
+      .map(([component]) => component);
+
+    const techParams: Record<string, any> = {};
+    for (const comp of enabled) {
+      if (params.technology_parameters[comp]) {
+        // Only include fields that are defined and not empty
+        const clean = Object.fromEntries(
+          Object.entries(params.technology_parameters[comp]).filter(
+            ([_, v]) =>
+              v !== undefined &&
+              v !== null &&
+              v !== "" &&
+              // Remove false for booleans, but keep 0 for numbers
+              (typeof v !== "boolean" || v === true)
+          )
+        );
+        if (Object.keys(clean).length > 0) techParams[comp] = clean;
+      }
     }
+    return techParams;
+  };
+
+  const handleSubmit = async () => {
+    if (!projectId) {
+      alert("Project ID is missing.");
+      return;
+    }
+    const payload = {
+      project_id: projectId,
+      economic_settings: {
+        discount_rate: params.project_economic_settings.discount_rate,
+        currency: params.project_economic_settings.currency,
+      },
+      technology_parameters: getEnabledTechParams(),
+    };
+    mutation.mutate(payload, {
+      onSuccess: () => {
+        router.push("/load-demand");
+      },
+      onError: (error: any) => {
+        alert(
+          "Error submitting technology parameters: " +
+            (error?.message || "Unknown error")
+        );
+      },
+    });
   };
 
   // Get enabled components

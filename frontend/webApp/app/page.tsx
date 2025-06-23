@@ -41,7 +41,7 @@ export default function LandingPage() {
         <div className="flex items-center gap-8 mb-16">
           <div className="flex-1">
             <Image
-              src="/placeholder.svg?height=300&width=400"
+              src="/mini-grids.png"
               alt="Mini-grid with solar panels and rural buildings"
               width={400}
               height={300}
@@ -74,7 +74,7 @@ export default function LandingPage() {
         <div className="flex items-center gap-8">
           <div className="flex-1">
             <Image
-              src="/placeholder.svg?height=300&width=400"
+              src="/swarm-grids.png"
               alt="Swarm-grid with multiple solar installations"
               width={400}
               height={300}
