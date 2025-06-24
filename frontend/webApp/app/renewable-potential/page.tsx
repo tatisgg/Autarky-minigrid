@@ -18,7 +18,6 @@ import { useRenewablesPotential } from "@/hooks/use-api"; // You'll need to crea
 import Papa from "papaparse";
 
 interface RenewableProfile {
-  timestep: number[];
   [season: string]: number[];
 }
 
@@ -195,16 +194,11 @@ export default function RenewablePotentialPage() {
       throw new Error("CSV file is empty");
     }
 
+    // Identify season columns (all columns)
     const firstRow = data[0];
-    const seasonColumns: string[] = [];
-
-    // Identify season columns (anything that's not timestep)
-    Object.keys(firstRow).forEach((key) => {
-      const normalizedKey = key.trim().toLowerCase();
-      if (normalizedKey !== "timestep" && normalizedKey !== "") {
-        seasonColumns.push(key.trim());
-      }
-    });
+    const seasonColumns: string[] = Object.keys(firstRow).filter(
+      (key) => key.trim() !== ""
+    );
 
     if (seasonColumns.length === 0) {
       throw new Error(
@@ -212,55 +206,18 @@ export default function RenewablePotentialPage() {
       );
     }
 
-    // Validate timestep column
-    const timestepKey =
-      Object.keys(firstRow).find(
-        (key) => key.trim().toLowerCase() === "timestep"
-      ) || "timestep";
-
-    if (!firstRow.hasOwnProperty(timestepKey)) {
-      throw new Error("Missing 'timestep' column in CSV");
-    }
-
-    // Parse the data
+    // Use row index as timestep (not sent to backend)
     const parsedData: RenewableProfile = {
-      timestep: [],
+      // timestep: Array.from({ length: data.length }, (_, i) => i), // REMOVE THIS LINE
       ...Object.fromEntries(seasonColumns.map((season) => [season, []])),
     };
 
     data.forEach((row, index) => {
-      if (row[timestepKey] === undefined || row[timestepKey] === null) {
-        return;
-      }
-
-      const timestep = Number(row[timestepKey]);
-      if (isNaN(timestep)) {
-        console.warn(
-          `Invalid timestep at row ${index + 1}: ${row[timestepKey]}`
-        );
-        return;
-      }
-
-      parsedData.timestep.push(timestep);
-
       seasonColumns.forEach((season) => {
         const value = Number(row[season]);
-        if (isNaN(value)) {
-          console.warn(
-            `Invalid value for ${season} at row ${index + 1}: ${row[season]}`
-          );
-          parsedData[season].push(0);
-        } else {
-          parsedData[season].push(value);
-        }
+        parsedData[season].push(isNaN(value) ? 0 : value);
       });
     });
-
-    if (parsedData.timestep.length === 0) {
-      throw new Error("No valid data rows found in CSV");
-    }
-
-    console.log(`✅ Parsed CSV data for ${techKey}:`, parsedData);
 
     setRenewableData((prev) => ({ ...prev, [techKey]: parsedData }));
     setVisibleSeasons((prev) => ({
@@ -570,15 +527,14 @@ export default function RenewablePotentialPage() {
                     </h5>
                     <div className="text-xs text-gray-600 space-y-1">
                       <p>
-                        • First column: <code>timestep</code> (0-23 for hourly
-                        data)
-                      </p>
-                      <p>
-                        • Additional columns: season names (e.g., winter,
+                        • Each column should be a season name (e.g., winter,
                         summer, spring, fall)
                       </p>
+                      <p>
+                        • Each row is an hourly value (0-23 rows for 24 hours)
+                      </p>
                       <p>• Values should be numeric (capacity factor 0-1)</p>
-                      <p>• Example: timestep,winter,summer,spring,fall</p>
+                      <p>• Example: winter,summer,spring,fall</p>
                     </div>
                   </div>
                 </div>

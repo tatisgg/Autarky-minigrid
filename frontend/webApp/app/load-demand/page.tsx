@@ -14,7 +14,7 @@ import { useLoadDemand } from "@/hooks/use-api";
 import Papa from "papaparse";
 
 interface LoadProfile {
-  timestep: number[];
+
   [season: string]: number[];
 }
 
@@ -111,18 +111,11 @@ export default function LoadDemandPage() {
       throw new Error("CSV file is empty");
     }
 
-    // Check if we have the required columns
+    // Identify season columns (all columns)
     const firstRow = data[0];
-    const requiredColumns = ["timestep"];
-    const seasonColumns: string[] = [];
-
-    // Identify season columns (anything that's not timestep)
-    Object.keys(firstRow).forEach((key) => {
-      const normalizedKey = key.trim().toLowerCase();
-      if (normalizedKey !== "timestep" && normalizedKey !== "") {
-        seasonColumns.push(key.trim());
-      }
-    });
+    const seasonColumns: string[] = Object.keys(firstRow).filter(
+      (key) => key.trim() !== ""
+    );
 
     if (seasonColumns.length === 0) {
       throw new Error(
@@ -130,67 +123,21 @@ export default function LoadDemandPage() {
       );
     }
 
-    // Validate timestep column
-    if (!("timestep" in firstRow) && !("Timestep" in firstRow)) {
-      throw new Error("Missing 'timestep' column in CSV");
-    }
-
-    // Extract timestep column (case insensitive)
-    const timestepKey =
-      Object.keys(firstRow).find(
-        (key) => key.trim().toLowerCase() === "timestep"
-      ) || "timestep";
-
-    // Parse the data
+    // Use row index as timestep
     const parsedData: LoadProfile = {
-      timestep: [],
+      // timestep: Array.from({ length: data.length }, (_, i) => i), // REMOVE THIS LINE
       ...Object.fromEntries(seasonColumns.map((season) => [season, []])),
     };
 
     data.forEach((row, index) => {
-      // Skip rows with undefined timestep
-      if (row[timestepKey] === undefined || row[timestepKey] === null) {
-        return;
-      }
-
-      const timestep = Number(row[timestepKey]);
-      if (isNaN(timestep)) {
-        console.warn(
-          `Invalid timestep at row ${index + 1}: ${row[timestepKey]}`
-        );
-        return;
-      }
-
-      parsedData.timestep.push(timestep);
-
       seasonColumns.forEach((season) => {
         const value = Number(row[season]);
-        if (isNaN(value)) {
-          console.warn(
-            `Invalid value for ${season} at row ${index + 1}: ${row[season]}`
-          );
-          parsedData[season].push(0); // Default to 0 for invalid values
-        } else {
-          parsedData[season].push(value);
-        }
+        parsedData[season].push(isNaN(value) ? 0 : value);
       });
     });
 
-    // Validate that we have data
-    if (parsedData.timestep.length === 0) {
-      throw new Error("No valid data rows found in CSV");
-    }
-
-    // Validate that all seasons have the same length as timestep
-    seasonColumns.forEach((season) => {
-      if (parsedData[season].length !== parsedData.timestep.length) {
-        console.warn(`Season ${season} has different length than timestep`);
-      }
-    });
-
-    console.log("✅ Parsed CSV data:", parsedData);
     setLoadData(parsedData);
-    setVisibleSeasons(seasonColumns.slice(0, 4)); // Show first 4 seasons by default
+    setVisibleSeasons(seasonColumns.slice(0, 4));
   };
 
   const handleSeasonToggle = (season: string, checked: boolean) => {
@@ -393,15 +340,14 @@ export default function LoadDemandPage() {
                   </h5>
                   <div className="text-xs text-gray-600 space-y-1">
                     <p>
-                      • First column: <code>timestep</code> (0-23 for hourly
-                      data)
+                      • Each column should be a season name (e.g., winter,
+                      summer, spring, fall)
                     </p>
                     <p>
-                      • Additional columns: season names (e.g., winter, summer,
-                      spring, fall)
+                      • Each row is an hourly value (0-23 rows for 24 hours)
                     </p>
                     <p>• Values should be numeric (load in kW)</p>
-                    <p>• Example: timestep,winter,summer,spring,fall</p>
+                    <p>• Example: winter,summer,spring,fall</p>
                   </div>
                 </div>
               </div>
