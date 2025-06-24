@@ -328,10 +328,6 @@ export const api = {
     const apiData = {
       project_id: data.project_id,
       solver_name: data.solver_name || "HiGHS",
-      solver_settings: data.solver_settings || {
-        TimeLimit: 60,
-        MIPGap: 0.01,
-      },
     }
 
     const response = await fetch(`${API_BASE_URL}/model-optimize`, {
