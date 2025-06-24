@@ -1,7 +1,29 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
-import { Triangle } from "lucide-react";
+
+const team = [
+  {
+    name: "Tatiana Gonzaléz Grandón",
+    role: "Principal Investigator",
+    image: "/Tatiana.jpg",
+  },
+  {
+    name: "Nesrine Ouanes",
+    role: "PhD Candidate",
+    image: "/Nesrine Ouanes.jpg",
+  },
+  {
+    name: "Alessandro Onori",
+    role: "Research Fellow & Backend Developer",
+    image: "/Alessandro.jpg",
+  },
+  {
+    name: "Armel Munyaneza",
+    role: "Frontend Developer",
+    image: "/armel.jpeg",
+  },
+];
 
 export default function Landing() {
   return (
@@ -79,7 +101,10 @@ export default function Landing() {
               Model, optimize, and manage decentralized energy systems under
               uncertainty, fully open, fully yours.
             </p>
-            <Link href="https://app.autarky-energy.net/" className="inline-block">
+            <Link
+              href="https://app.autarky-energy.net/"
+              className="inline-block"
+            >
               <Button
                 size="lg"
                 className="bg-black hover:bg-gray-800 text-white px-8 py-4 text-lg rounded-lg"
@@ -189,10 +214,10 @@ export default function Landing() {
             </div>
 
             {/* Center logo overlay */}
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-6 rounded-lg shadow-lg ">
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-6 rounded-lg ">
               <div className="relative ">
                 <Image
-                  src="/logo-1.jpeg"
+                  src="/logo-sv.svg"
                   alt="Logo"
                   width={200}
                   height={200}
@@ -254,13 +279,21 @@ export default function Landing() {
               Meet our Team
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-6 max-w-2xl mx-auto">
-              {[1, 2, 3, 4].map((i) => (
-                <div key={i} className="text-center">
-                  <div className="w-20 h-20 bg-white/20 rounded-full mx-auto mb-3 flex items-center justify-center">
-                    <div className="w-16 h-16 bg-gradient-to-b from-cyan-300 to-green-400 rounded-full"></div>
+              {team.map((member) => (
+                <div key={member.name} className="text-center">
+                  <div className="flex items-center justify-center mb-3">
+                    <div className="w-24 h-24 rounded-full border-4 border-white overflow-hidden flex items-center justify-center mx-auto">
+                      <Image
+                        src={member.image}
+                        alt={member.name}
+                        width={96}
+                        height={96}
+                        className="object-cover w-24 h-24"
+                      />
+                    </div>
                   </div>
-                  <p className="text-white font-medium">Name</p>
-                  <p className="text-white/80 text-sm">Role</p>
+                  <p className="text-black font-bold mt-2">{member.name}</p>
+                  <p className="text-black text-base">{member.role}</p>
                 </div>
               ))}
             </div>
