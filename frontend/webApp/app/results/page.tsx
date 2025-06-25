@@ -72,7 +72,7 @@ export default function ResultsPage() {
     setLoading(true);
     setError(null);
     fetch(
-      `https://autarky-website-backend.onrender.com/results?project_id=e3a53134-79b0-42b9-8b0a-0df571de8837`
+      `https://autarky-website-backend.onrender.com/results?project_id=${projectId}`
     )
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
