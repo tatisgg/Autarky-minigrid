@@ -15,6 +15,9 @@ import {
   YAxis,
   Legend,
   CartesianGrid,
+  AreaChart,
+  ComposedChart,
+  ReferenceLine,
 } from "recharts";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -27,6 +30,33 @@ const SEASON_LABELS: Record<string, string> = {
   season_2: "Spring",
   season_3: "Summer",
   season_4: "Autumn",
+};
+
+const COLOR_DICT: Record<string, string> = {
+  "Solar Production (kWh)": "#FFD700",
+  Battery: "#ADD8E6",
+  "Generator Production (kWh)": "#00008B",
+  "Grid Import (kWh)": "#800080",
+  "Grid Export (kWh)": "#800080",
+  "Solar Curtailment (kWh)": "#FFA500",
+  "Lost Load (kWh)": "#FF0000",
+  "Load Demand (kWh)": "#000000",
+};
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white p-3 border border-gray-300 rounded shadow-lg">
+        <p className="font-semibold">{`Hour: ${label}`}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} style={{ color: entry.color }}>
+            {`${entry.name}: ${Math.abs(entry.value).toFixed(2)} kWh`}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
 };
 
 export default function ResultsPage() {
@@ -79,16 +109,14 @@ export default function ResultsPage() {
 
   // Dispatch chart data for selected season
   const seasonData = dispatch[selectedSeason];
-  const chartData =
-    seasonData?.timestep?.map((t: number, i: number) => ({
-      hour: t,
-      Load: seasonData["load[kWh]"]?.[i] ?? 0,
-      Generator: seasonData["generator[kWh]"]?.[i] ?? 0,
-      Solar: seasonData["solar[kWh]"]?.[i] ?? 0,
-      BatteryCharge: seasonData["charge[kWh]"]?.[i] ?? 0,
-      BatteryDischarge: seasonData["discharge[kWh]"]?.[i] ?? 0,
-      SOC: seasonData["soc[kWh]"]?.[i] ?? 0,
-    })) || [];
+  const chartData = transformSeasonDataForDispatch(seasonData);
+
+  const dispatchOptions = {
+    onGrid: true,
+    allowGridExport: true,
+    lostLoad: false,
+    uncertainty: false,
+  };
 
   // Summary stats
   const renewablePenetration =
@@ -127,6 +155,105 @@ export default function ResultsPage() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  function prepareStackedDispatchData(
+    seasonData: any,
+    options: {
+      onGrid: boolean;
+      allowGridExport: boolean;
+      lostLoad: boolean;
+      uncertainty: boolean;
+    }
+  ) {
+    const n = seasonData["Solar Production (kWh)"]?.length || 0;
+    const result = [];
+
+    let cumulativeOut = Array(n).fill(0);
+    let cumulativeIn = Array(n).fill(0);
+
+    for (let i = 0; i < n; i++) {
+      // Solar
+      const solar = seasonData["Solar Production (kWh)"]?.[i] ?? 0;
+      const generator = seasonData["Generator Production (kWh)"]?.[i] ?? 0;
+      const gridImport = seasonData["Grid Import (kWh)"]?.[i] ?? 0;
+      const gridExport = seasonData["Grid Export (kWh)"]?.[i] ?? 0;
+      const solarCurtail = seasonData["Solar Curtailment (kWh)"]?.[i] ?? 0;
+      const lostLoad = seasonData["Lost Load (kWh)"]?.[i] ?? 0;
+      const load = seasonData["Load Demand (kWh)"]?.[i] ?? 0;
+
+      // Battery
+      const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
+      const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
+      const netBattery = batteryDischarge - batteryCharge;
+      const netDischarge = Math.max(netBattery, 0);
+      const netCharge = Math.max(-netBattery, 0);
+
+      // Cumulative stacking
+      let y0 = cumulativeOut[i];
+      let y1 = y0 + solar;
+      let y2 = y1 + netDischarge;
+      let y3 = y2 + generator;
+      let y4 = y3 + (options.onGrid ? gridImport : 0);
+      let y5 = y4 + (options.lostLoad ? lostLoad : 0);
+
+      let y0_in = -cumulativeIn[i];
+      let y1_in = y0_in - netCharge;
+      let y2_in =
+        y1_in - (options.onGrid && options.allowGridExport ? gridExport : 0);
+
+      result.push({
+        hour: i,
+        solar0: y0,
+        solar1: y1,
+        batteryDischarge0: y1,
+        batteryDischarge1: y2,
+        generator0: y2,
+        generator1: y3,
+        gridImport0: y3,
+        gridImport1: y4,
+        lostLoad0: y4,
+        lostLoad1: y5,
+        batteryCharge0: y0_in,
+        batteryCharge1: y1_in,
+        gridExport0: y1_in,
+        gridExport1: y2_in,
+        load, // for line
+      });
+
+      // Update cumulative
+      cumulativeOut[i] = y5;
+      cumulativeIn[i] = -y2_in;
+    }
+    return result;
+  }
+
+  function transformSeasonDataForDispatch(seasonData: any) {
+    if (!seasonData?.timestep) return [];
+
+    return seasonData.timestep.map((t: number, i: number) => {
+      const batteryCharge = seasonData["charge[kWh]"]?.[i] ?? 0;
+      const batteryDischarge = seasonData["discharge[kWh]"]?.[i] ?? 0;
+      const batteryNet = batteryDischarge - batteryCharge;
+      return {
+        hour: t,
+        solarProduction: seasonData["solar[kWh]"]?.[i] ?? 0,
+        batteryDischarge: Math.max(0, batteryNet),
+        generatorProduction: seasonData["generator[kWh]"]?.[i] ?? 0,
+        gridImport: seasonData["grid_import[kWh]"]?.[i] ?? 0,
+        lostLoad: seasonData["lost_load[kWh]"]?.[i] ?? 0,
+        batteryCharge: -Math.max(0, -batteryNet),
+        gridExport: -(seasonData["grid_export[kWh]"]?.[i] ?? 0),
+        loadDemand: seasonData["load[kWh]"]?.[i] ?? 0,
+      };
+    });
+  }
+
+  const stackedData = prepareStackedDispatchData(seasonData, {
+    onGrid: true, // or from your config
+    allowGridExport: true,
+    lostLoad: true,
+    uncertainty: false,
+  });
 
   return (
     <div className="min-h-screen bg-white border-4 border-purple-400">
@@ -262,16 +389,21 @@ export default function ResultsPage() {
                 ))}
               </select>
             </div>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" />
+            <ResponsiveContainer width="100%" height={400}>
+              <ComposedChart
+                data={chartData}
+                margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
                 <XAxis
                   dataKey="hour"
                   label={{
                     value: "Hour",
-                    position: "insideBottomRight",
-                    offset: -5,
+                    position: "insideBottom",
+                    offset: -10,
                   }}
+                  type="number"
+                  domain={[0, 23]}
                 />
                 <YAxis
                   label={{
@@ -280,51 +412,79 @@ export default function ResultsPage() {
                     position: "insideLeft",
                   }}
                 />
+                <RechartsTooltip content={<CustomTooltip />} />
                 <Legend />
-                <Line
+                <ReferenceLine y={0} stroke="#666" strokeWidth={1} />
+                {/* Positive flows */}
+                <Area
                   type="monotone"
-                  dataKey="Load"
-                  stroke="#2E86DE"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="Generator"
-                  stroke="#F5B041"
-                  strokeWidth={2}
-                  dot={false}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="Solar"
-                  stroke="#27AE60"
-                  strokeWidth={2}
-                  dot={false}
+                  dataKey="solarProduction"
+                  stackId="positive"
+                  stroke="#FFD700"
+                  fill="#FFD700"
+                  fillOpacity={0.7}
+                  name="Solar Production"
                 />
                 <Area
                   type="monotone"
-                  dataKey="BatteryCharge"
-                  fill="#A569BD"
-                  stroke="#A569BD"
-                  opacity={0.3}
+                  dataKey="batteryDischarge"
+                  stackId="positive"
+                  stroke="#ADD8E6"
+                  fill="#ADD8E6"
+                  fillOpacity={0.7}
+                  name="Battery Discharge"
                 />
                 <Area
                   type="monotone"
-                  dataKey="BatteryDischarge"
-                  fill="#E74C3C"
-                  stroke="#E74C3C"
-                  opacity={0.3}
+                  dataKey="generatorProduction"
+                  stackId="positive"
+                  stroke="#00008B"
+                  fill="#00008B"
+                  fillOpacity={0.7}
+                  name="Generator Production"
                 />
+                {dispatchOptions.onGrid && (
+                  <Area
+                    type="monotone"
+                    dataKey="gridImport"
+                    stackId="positive"
+                    stroke="#800080"
+                    fill="#800080"
+                    fillOpacity={0.7}
+                    name="Grid Import"
+                  />
+                )}
+                {/* Negative flows */}
+                <Area
+                  type="monotone"
+                  dataKey="batteryCharge"
+                  stackId="negative"
+                  stroke="#ADD8E6"
+                  fill="#ADD8E6"
+                  fillOpacity={0.7}
+                  name="Battery Charge"
+                />
+                {dispatchOptions.onGrid && dispatchOptions.allowGridExport && (
+                  <Area
+                    type="monotone"
+                    dataKey="gridExport"
+                    stackId="negative"
+                    stroke="#800080"
+                    fill="#800080"
+                    fillOpacity={0.7}
+                    name="Grid Export"
+                  />
+                )}
+                {/* Load demand line */}
                 <Line
                   type="monotone"
-                  dataKey="SOC"
-                  stroke="#000"
-                  strokeDasharray="5 5"
+                  dataKey="loadDemand"
+                  stroke="#000000"
+                  strokeWidth={3}
                   dot={false}
+                  name="Load Demand"
                 />
-                <RechartsTooltip />
-              </LineChart>
+              </ComposedChart>
             </ResponsiveContainer>
             <div className="mt-4 text-sm space-y-1">
               <div>
@@ -360,6 +520,93 @@ export default function ResultsPage() {
           </summary>
           <pre className="whitespace-pre-wrap">{logs.join("\n")}</pre>
         </details>
+        <ResponsiveContainer width="100%" height={350}>
+          <AreaChart data={stackedData}>
+            <XAxis dataKey="hour" />
+            <YAxis />
+            <RechartsTooltip />
+            <Legend />
+            {/* Solar */}
+            <Area
+              type="monotone"
+              dataKey={(d) => [d.solar0, d.solar1]}
+              stroke={COLOR_DICT["Solar Production (kWh)"]}
+              fill={COLOR_DICT["Solar Production (kWh)"]}
+              fillOpacity={0.5}
+              isRange
+              name="Solar Production"
+            />
+            {/* Battery Discharge */}
+            <Area
+              type="monotone"
+              dataKey={(d) => [d.batteryDischarge0, d.batteryDischarge1]}
+              stroke={COLOR_DICT["Battery"]}
+              fill={COLOR_DICT["Battery"]}
+              fillOpacity={0.5}
+              isRange
+              name="Battery Discharge"
+            />
+            {/* Generator */}
+            <Area
+              type="monotone"
+              dataKey={(d) => [d.generator0, d.generator1]}
+              stroke={COLOR_DICT["Generator Production (kWh)"]}
+              fill={COLOR_DICT["Generator Production (kWh)"]}
+              fillOpacity={0.5}
+              isRange
+              name="Generator"
+            />
+            {/* Grid Import */}
+            <Area
+              type="monotone"
+              dataKey={(d) => [d.gridImport0, d.gridImport1]}
+              stroke={COLOR_DICT["Grid Import (kWh)"]}
+              fill={COLOR_DICT["Grid Import (kWh)"]}
+              fillOpacity={0.5}
+              isRange
+              name="Grid Import"
+            />
+            {/* Lost Load */}
+            <Area
+              type="monotone"
+              dataKey={(d) => [d.lostLoad0, d.lostLoad1]}
+              stroke={COLOR_DICT["Lost Load (kWh)"]}
+              fill={COLOR_DICT["Lost Load (kWh)"]}
+              fillOpacity={0.5}
+              isRange
+              name="Lost Load"
+            />
+            {/* Battery Charge (negative, below axis) */}
+            <Area
+              type="monotone"
+              dataKey={(d) => [d.batteryCharge0, d.batteryCharge1]}
+              stroke={COLOR_DICT["Battery"]}
+              fill={COLOR_DICT["Battery"]}
+              fillOpacity={0.5}
+              isRange
+              name="Battery Charge"
+            />
+            {/* Grid Export (negative, below axis) */}
+            <Area
+              type="monotone"
+              dataKey={(d) => [d.gridExport0, d.gridExport1]}
+              stroke={COLOR_DICT["Grid Export (kWh)"]}
+              fill={COLOR_DICT["Grid Export (kWh)"]}
+              fillOpacity={0.5}
+              isRange
+              name="Grid Export"
+            />
+            {/* Load as line */}
+            <Line
+              type="monotone"
+              dataKey="load"
+              stroke={COLOR_DICT["Load Demand (kWh)"]}
+              strokeWidth={2}
+              dot={false}
+              name="Load"
+            />
+          </AreaChart>
+        </ResponsiveContainer>
       </main>
     </div>
   );
