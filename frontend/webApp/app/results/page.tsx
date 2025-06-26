@@ -389,102 +389,92 @@ export default function ResultsPage() {
                 ))}
               </select>
             </div>
-            <ResponsiveContainer width="100%" height={400}>
-              <ComposedChart
-                data={chartData}
-                margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
-                <XAxis
-                  dataKey="hour"
-                  label={{
-                    value: "Hour",
-                    position: "insideBottom",
-                    offset: -10,
-                  }}
-                  type="number"
-                  domain={[0, 23]}
-                />
-                <YAxis
-                  label={{
-                    value: "Energy (kWh)",
-                    angle: -90,
-                    position: "insideLeft",
-                  }}
-                />
-                <RechartsTooltip content={<CustomTooltip />} />
+            <ResponsiveContainer width="100%" height={350}>
+              <AreaChart data={stackedData}>
+                <XAxis dataKey="hour" />
+                <YAxis />
+                <RechartsTooltip />
                 <Legend />
-                <ReferenceLine y={0} stroke="#666" strokeWidth={1} />
-                {/* Positive flows */}
+                {/* Solar */}
                 <Area
                   type="monotone"
-                  dataKey="solarProduction"
-                  stackId="positive"
-                  stroke="#FFD700"
-                  fill="#FFD700"
-                  fillOpacity={0.7}
+                  dataKey={(d) => [d.solar0, d.solar1]}
+                  stroke={COLOR_DICT["Solar Production (kWh)"]}
+                  fill={COLOR_DICT["Solar Production (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
                   name="Solar Production"
                 />
+                {/* Battery Discharge */}
                 <Area
                   type="monotone"
-                  dataKey="batteryDischarge"
-                  stackId="positive"
-                  stroke="#ADD8E6"
-                  fill="#ADD8E6"
-                  fillOpacity={0.7}
+                  dataKey={(d) => [d.batteryDischarge0, d.batteryDischarge1]}
+                  stroke={COLOR_DICT["Battery"]}
+                  fill={COLOR_DICT["Battery"]}
+                  fillOpacity={0.5}
+                  isRange
                   name="Battery Discharge"
                 />
+                {/* Generator */}
                 <Area
                   type="monotone"
-                  dataKey="generatorProduction"
-                  stackId="positive"
-                  stroke="#00008B"
-                  fill="#00008B"
-                  fillOpacity={0.7}
-                  name="Generator Production"
+                  dataKey={(d) => [d.generator0, d.generator1]}
+                  stroke={COLOR_DICT["Generator Production (kWh)"]}
+                  fill={COLOR_DICT["Generator Production (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Generator"
                 />
-                {dispatchOptions.onGrid && (
-                  <Area
-                    type="monotone"
-                    dataKey="gridImport"
-                    stackId="positive"
-                    stroke="#800080"
-                    fill="#800080"
-                    fillOpacity={0.7}
-                    name="Grid Import"
-                  />
-                )}
-                {/* Negative flows */}
+                {/* Grid Import */}
                 <Area
                   type="monotone"
-                  dataKey="batteryCharge"
-                  stackId="negative"
-                  stroke="#ADD8E6"
-                  fill="#ADD8E6"
-                  fillOpacity={0.7}
+                  dataKey={(d) => [d.gridImport0, d.gridImport1]}
+                  stroke={COLOR_DICT["Grid Import (kWh)"]}
+                  fill={COLOR_DICT["Grid Import (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Grid Import"
+                />
+                {/* Lost Load */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.lostLoad0, d.lostLoad1]}
+                  stroke={COLOR_DICT["Lost Load (kWh)"]}
+                  fill={COLOR_DICT["Lost Load (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Lost Load"
+                />
+                {/* Battery Charge (negative, below axis) */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.batteryCharge0, d.batteryCharge1]}
+                  stroke={COLOR_DICT["Battery"]}
+                  fill={COLOR_DICT["Battery"]}
+                  fillOpacity={0.5}
+                  isRange
                   name="Battery Charge"
                 />
-                {dispatchOptions.onGrid && dispatchOptions.allowGridExport && (
-                  <Area
-                    type="monotone"
-                    dataKey="gridExport"
-                    stackId="negative"
-                    stroke="#800080"
-                    fill="#800080"
-                    fillOpacity={0.7}
-                    name="Grid Export"
-                  />
-                )}
-                {/* Load demand line */}
+                {/* Grid Export (negative, below axis) */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.gridExport0, d.gridExport1]}
+                  stroke={COLOR_DICT["Grid Export (kWh)"]}
+                  fill={COLOR_DICT["Grid Export (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Grid Export"
+                />
+                {/* Load as line */}
                 <Line
                   type="monotone"
-                  dataKey="loadDemand"
-                  stroke="#000000"
-                  strokeWidth={3}
+                  dataKey="load"
+                  stroke={COLOR_DICT["Load Demand (kWh)"]}
+                  strokeWidth={2}
                   dot={false}
-                  name="Load Demand"
+                  name="Load"
                 />
-              </ComposedChart>
+              </AreaChart>
             </ResponsiveContainer>
             <div className="mt-4 text-sm space-y-1">
               <div>
@@ -520,93 +510,6 @@ export default function ResultsPage() {
           </summary>
           <pre className="whitespace-pre-wrap">{logs.join("\n")}</pre>
         </details>
-        <ResponsiveContainer width="100%" height={350}>
-          <AreaChart data={stackedData}>
-            <XAxis dataKey="hour" />
-            <YAxis />
-            <RechartsTooltip />
-            <Legend />
-            {/* Solar */}
-            <Area
-              type="monotone"
-              dataKey={(d) => [d.solar0, d.solar1]}
-              stroke={COLOR_DICT["Solar Production (kWh)"]}
-              fill={COLOR_DICT["Solar Production (kWh)"]}
-              fillOpacity={0.5}
-              isRange
-              name="Solar Production"
-            />
-            {/* Battery Discharge */}
-            <Area
-              type="monotone"
-              dataKey={(d) => [d.batteryDischarge0, d.batteryDischarge1]}
-              stroke={COLOR_DICT["Battery"]}
-              fill={COLOR_DICT["Battery"]}
-              fillOpacity={0.5}
-              isRange
-              name="Battery Discharge"
-            />
-            {/* Generator */}
-            <Area
-              type="monotone"
-              dataKey={(d) => [d.generator0, d.generator1]}
-              stroke={COLOR_DICT["Generator Production (kWh)"]}
-              fill={COLOR_DICT["Generator Production (kWh)"]}
-              fillOpacity={0.5}
-              isRange
-              name="Generator"
-            />
-            {/* Grid Import */}
-            <Area
-              type="monotone"
-              dataKey={(d) => [d.gridImport0, d.gridImport1]}
-              stroke={COLOR_DICT["Grid Import (kWh)"]}
-              fill={COLOR_DICT["Grid Import (kWh)"]}
-              fillOpacity={0.5}
-              isRange
-              name="Grid Import"
-            />
-            {/* Lost Load */}
-            <Area
-              type="monotone"
-              dataKey={(d) => [d.lostLoad0, d.lostLoad1]}
-              stroke={COLOR_DICT["Lost Load (kWh)"]}
-              fill={COLOR_DICT["Lost Load (kWh)"]}
-              fillOpacity={0.5}
-              isRange
-              name="Lost Load"
-            />
-            {/* Battery Charge (negative, below axis) */}
-            <Area
-              type="monotone"
-              dataKey={(d) => [d.batteryCharge0, d.batteryCharge1]}
-              stroke={COLOR_DICT["Battery"]}
-              fill={COLOR_DICT["Battery"]}
-              fillOpacity={0.5}
-              isRange
-              name="Battery Charge"
-            />
-            {/* Grid Export (negative, below axis) */}
-            <Area
-              type="monotone"
-              dataKey={(d) => [d.gridExport0, d.gridExport1]}
-              stroke={COLOR_DICT["Grid Export (kWh)"]}
-              fill={COLOR_DICT["Grid Export (kWh)"]}
-              fillOpacity={0.5}
-              isRange
-              name="Grid Export"
-            />
-            {/* Load as line */}
-            <Line
-              type="monotone"
-              dataKey="load"
-              stroke={COLOR_DICT["Load Demand (kWh)"]}
-              strokeWidth={2}
-              dot={false}
-              name="Load"
-            />
-          </AreaChart>
-        </ResponsiveContainer>
       </main>
     </div>
   );
