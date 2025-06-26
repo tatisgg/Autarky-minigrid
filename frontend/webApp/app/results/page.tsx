@@ -72,7 +72,7 @@ export default function ResultsPage() {
     setLoading(true);
     setError(null);
     fetch(
-      `https://autarky-website-backend.onrender.com/results?project_id=${projectId}`
+      `https://autarky-website-backend.onrender.com/results?project_id=${projectId}`,
     )
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
@@ -312,14 +312,22 @@ export default function ResultsPage() {
             <h2 className="font-bold text-lg mb-2">Optimal Sizing</h2>
             <div className="bg-yellow-100 border border-yellow-300 rounded-lg p-6 mb-6 text-lg font-medium space-y-2">
               <div>
-                Solar PV: <span className="font-bold">{solarKW} kW</span>
+                Solar PV:{" "}
+                <span className="font-bold">
+                  {Number(solarKW).toFixed(0)} kW
+                </span>
               </div>
               <div>
-                Battery: <span className="font-bold">{batteryKWh} kWh</span>
+                Battery:{" "}
+                <span className="font-bold">
+                  {Number(batteryKWh).toFixed(0)} kWh
+                </span>
               </div>
               <div>
                 Diesel Generator:{" "}
-                <span className="font-bold">{generatorKW.toFixed(2)} kW</span>
+                <span className="font-bold">
+                  {Number(generatorKW).toFixed(0)} kW
+                </span>
               </div>
             </div>
             <h2 className="font-bold text-lg mb-2">Costs Breakdown</h2>
