@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { useProjectStore } from "@/lib/store";
 import { useProjectSetup } from "@/hooks/use-api";
+
 import dynamic from "next/dynamic";
 const MapComponent = dynamic(() => import("@/components/map-component"), {
   ssr: false,
@@ -103,6 +104,18 @@ export default function ProjectSetupPage() {
       return false;
     }
 
+    // Validate Operation Time Steps
+    if (
+      !Number.isInteger(projectData.operation_timesteps) ||
+      projectData.operation_timesteps < 24 ||
+      projectData.operation_timesteps > 8760
+    ) {
+      setValidationError(
+        "Operation Time Steps must be an integer between 24 and 8760"
+      );
+      return false;
+    }
+
     return true;
   };
 
@@ -124,7 +137,7 @@ export default function ProjectSetupPage() {
       time_resolution: projectData.time_resolution,
       seasonality_enabled: projectData.seasonality_enabled,
       seasonality_option: projectData.seasonality_option,
-      typical_profile: projectData.typical_profile || "day", // use selected value or fallback
+      operation_timesteps: projectData.operation_timesteps, // use selected value or fallback
     };
 
     console.log(
@@ -133,7 +146,7 @@ export default function ProjectSetupPage() {
     );
 
     try {
-      const result = await projectSetupMutation.mutateAsync(submitData);
+      const result = await projectSetupMutation.mutateAsync(submitData as any);
       console.log("✅ Project setup successful:", result);
       router.push("/system-configuration");
     } catch (error) {
@@ -173,6 +186,14 @@ export default function ProjectSetupPage() {
     const timeHorizon = value === "" ? 20 : parseInt(value, 10);
     if (!isNaN(timeHorizon)) {
       updateProjectData({ time_horizon: timeHorizon });
+    }
+  };
+
+  // Add this to your store if not present:
+  const handleOperationTimestepsChange = (value: string) => {
+    const steps = value === "" ? 24 : parseInt(value, 10);
+    if (!isNaN(steps)) {
+      updateProjectData({ operation_timesteps: steps });
     }
   };
 
@@ -278,7 +299,7 @@ export default function ProjectSetupPage() {
                 </div>
               </div>
 
-              <div className="w-full h-96 border rounded-lg overflow-hidden">
+              <div className="w-full h-96 mt-9 border rounded-lg overflow-hidden">
                 <MapComponent
                   latitude={projectData.location.latitude}
                   longitude={projectData.location.longitude}
@@ -292,7 +313,7 @@ export default function ProjectSetupPage() {
           <div className="space-y-6">
             <div>
               <Label htmlFor="projectName" className="text-lg font-semibold">
-                Project Name *
+                Project Name
               </Label>
               <Input
                 id="projectName"
@@ -334,7 +355,6 @@ export default function ProjectSetupPage() {
                     id="timeHorizon"
                     type="number"
                     min="1"
-                    max="50"
                     value={projectData.time_horizon}
                     onChange={(e) => handleTimeHorizonChange(e.target.value)}
                     className="mt-1"
@@ -400,9 +420,9 @@ export default function ProjectSetupPage() {
                 </div>
 
                 {/* Flex row for Number of seasons and Typical Profile */}
-                <div className="flex flex-row gap-6 items-end">
+                <div className="flex flex-row gap-6 items-start">
                   {projectData.seasonality_enabled && (
-                    <div>
+                    <div className="flex flex-col">
                       <Label htmlFor="seasonalityOption">
                         Number of seasons:
                       </Label>
@@ -423,25 +443,26 @@ export default function ProjectSetupPage() {
                     </div>
                   )}
 
-                  {/* Typical Profile Dropdown */}
-                  <div>
-                    <Label htmlFor="typicalProfile">
-                      Typical Operation Profile:
+                  <div className="flex flex-col">
+                    <Label htmlFor="operationTimesteps">
+                      Operation Time Steps
                     </Label>
-                    <Select
-                      value={projectData.typical_profile || ""}
-                      onValueChange={(value) =>
-                        updateProjectData({ typical_profile: value })
+                    <Input
+                      id="operationTimesteps"
+                      type="number"
+                      min={24}
+                      max={8760}
+                      step={1}
+                      value={projectData.operation_timesteps ?? 24}
+                      onChange={(e) =>
+                        handleOperationTimestepsChange(e.target.value)
                       }
-                    >
-                      <SelectTrigger className="mt-1 max-w-48">
-                        <SelectValue placeholder="Select profile" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="day">Day</SelectItem>
-                        {/* Add more options in the future */}
-                      </SelectContent>
-                    </Select>
+                      className="mt-1 max-w-48"
+                      required
+                    />
+                    <span className="text-xs text-gray-400 block mt-1">
+                      Integer between 24 and 8760 (default: 24)
+                    </span>
                   </div>
                 </div>
               </div>
@@ -459,7 +480,6 @@ export default function ProjectSetupPage() {
           </div>
         )}
 
-        {/* Navigation Buttons */}
         <div className="flex justify-end mt-12 space-x-4">
           <Link href="/components">
             <Button variant="outline" className="px-8 py-2">

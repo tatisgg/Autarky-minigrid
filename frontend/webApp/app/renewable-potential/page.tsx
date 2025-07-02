@@ -12,9 +12,10 @@ import {
   Upload,
   Download,
   AlertCircle,
+  Info,
 } from "lucide-react";
 import { useProjectStore } from "@/lib/store";
-import { useRenewablesPotential } from "@/hooks/use-api"; // You'll need to create this hook
+import { useRenewablesPotential } from "@/hooks/use-api";
 import Papa from "papaparse";
 
 interface RenewableProfile {
@@ -25,9 +26,9 @@ interface TechnicalParameters {
   component_name: string;
   nominal_capacity: number;
   inverter_efficiency?: number;
-  power_curve?: any; // For wind turbines
-  head?: number; // For hydro
-  efficiency?: number; // For hydro
+  power_curve?: any;
+  head?: number;
+  efficiency?: number;
 }
 
 interface RenewablesPotentialData {
@@ -41,7 +42,7 @@ interface RenewablesPotentialData {
 export default function RenewablePotentialPage() {
   const router = useRouter();
   const { projectId } = useProjectStore();
-  const renewablesPotentialMutation = useRenewablesPotential(); // You'll need to create this hook
+  const renewablesPotentialMutation = useRenewablesPotential();
 
   const [currentComponent, setCurrentComponent] = useState(0);
   const fileInputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -63,7 +64,7 @@ export default function RenewablePotentialPage() {
   }>({});
   const [componentName, setComponentName] = useState("");
   const [nominalCapacity, setNominalCapacity] = useState(1.0);
-  const [inverterEfficiency, setInverterEfficiency] = useState(0.95);
+  const [inverterEfficiency, setInverterEfficiency] = useState(95);
 
   const components = [
     {
@@ -116,14 +117,12 @@ export default function RenewablePotentialPage() {
   useEffect(() => {
     setIsClient(true);
 
-    // Initialize technical parameters
     const initialParams: { [key: string]: TechnicalParameters } = {};
     components.forEach((comp) => {
       initialParams[comp.tech_key] = comp.defaultParams;
     });
     setTechnicalParams(initialParams);
 
-    // Initialize with sample data for Solar PV
     const sampleSolarData: RenewableProfile = {
       timestep: Array.from({ length: 24 }, (_, i) => i),
       winter: [
@@ -194,26 +193,46 @@ export default function RenewablePotentialPage() {
       throw new Error("CSV file is empty");
     }
 
-    // Identify season columns (all columns)
+    const { operation_timesteps, seasonality_option } =
+      useProjectStore.getState().projectData;
+    const expectedSeasons = seasonality_option === "4 seasons" ? 4 : 2;
+
     const firstRow = data[0];
-    const seasonColumns: string[] = Object.keys(firstRow).filter(
+    const columns: string[] = Object.keys(firstRow).filter(
       (key) => key.trim() !== ""
     );
 
-    if (seasonColumns.length === 0) {
+    if (columns.length < expectedSeasons) {
       throw new Error(
-        "No season data columns found. Expected columns like 'winter', 'summer', etc."
+        `CSV must have at least ${expectedSeasons} columns (seasons).`
       );
     }
+    if (columns.length > expectedSeasons) {
+      setCsvErrors((prev) => ({
+        ...prev,
+        [techKey]: `Warning: CSV has more than ${expectedSeasons} columns. Extra columns will be ignored.`,
+      }));
+    }
 
-    // Use row index as timestep (not sent to backend)
-    const parsedData: RenewableProfile = {
-      // timestep: Array.from({ length: data.length }, (_, i) => i), // REMOVE THIS LINE
-      ...Object.fromEntries(seasonColumns.map((season) => [season, []])),
-    };
+    const usedColumns = columns.slice(0, expectedSeasons);
 
-    data.forEach((row, index) => {
-      seasonColumns.forEach((season) => {
+    if (data.length < operation_timesteps) {
+      throw new Error(
+        `CSV must have at least ${operation_timesteps} rows (timesteps) per season.`
+      );
+    }
+    if (data.length > operation_timesteps) {
+      setCsvErrors((prev) => ({
+        ...prev,
+        [techKey]: `Warning: CSV has more than ${operation_timesteps} rows. Extra rows will be ignored.`,
+      }));
+    }
+
+    const parsedData: RenewableProfile = Object.fromEntries(
+      usedColumns.map((season) => [season, []])
+    );
+    data.slice(0, operation_timesteps).forEach((row) => {
+      usedColumns.forEach((season) => {
         const value = Number(row[season]);
         parsedData[season].push(isNaN(value) ? 0 : value);
       });
@@ -222,7 +241,7 @@ export default function RenewablePotentialPage() {
     setRenewableData((prev) => ({ ...prev, [techKey]: parsedData }));
     setVisibleSeasons((prev) => ({
       ...prev,
-      [techKey]: seasonColumns.slice(0, 4),
+      [techKey]: usedColumns,
     }));
   };
 
@@ -247,7 +266,6 @@ export default function RenewablePotentialPage() {
 
   const handleAPIDownload = () => {
     console.log(`Downloading from ${components[currentComponent].apiName} API`);
-    // Handle API download here
   };
 
   const nextComponent = () => {
@@ -262,22 +280,50 @@ export default function RenewablePotentialPage() {
     }
   };
 
+  const validateRenewablePotential = () => {
+    if (components[currentComponent].tech_key === "solar_pv") {
+      if (!(nominalCapacity > 0)) {
+        setCsvErrors((prev) => ({
+          ...prev,
+          [components[currentComponent].tech_key]:
+            "Nominal Capacity must be greater than 0.",
+        }));
+        return false;
+      }
+      if (!(inverterEfficiency >= 0 && inverterEfficiency <= 100)) {
+        setCsvErrors((prev) => ({
+          ...prev,
+          [components[currentComponent].tech_key]:
+            "Inverter efficiency must be between 0 and 100.",
+        }));
+        return false;
+      }
+    }
+    return true;
+  };
+
   const handleSubmit = async () => {
+    if (!validateRenewablePotential()) return;
+
     if (!projectId) {
       console.error("No project ID found");
       return;
     }
 
-    // Submit data for all components that have data
+    const isValid = validateRenewablePotential();
+    if (!isValid) {
+      console.error("Validation failed");
+      return;
+    }
+
     const submissionPromises = Object.entries(renewableData).map(
       async ([techKey, profile]) => {
         let techParams = technicalParams[techKey];
-        // For solar_pv, override with input values
         if (techKey === "solar_pv") {
           techParams = {
             component_name: componentName,
             nominal_capacity: nominalCapacity,
-            inverter_efficiency: inverterEfficiency / 100, // If backend expects 0-1
+            inverter_efficiency: inverterEfficiency / 100,
           };
         }
         const submitData: RenewablesPotentialData = {
@@ -289,7 +335,7 @@ export default function RenewablePotentialPage() {
         };
 
         console.log(
-          `🔗 Submitting renewable potential data for ${techKey}:`,
+          `Submitting renewable potential data for ${techKey}:`,
           submitData
         );
         return renewablesPotentialMutation.mutateAsync(submitData);
@@ -298,10 +344,10 @@ export default function RenewablePotentialPage() {
 
     try {
       const responses = await Promise.all(submissionPromises);
-      console.log("✅ All renewable potential responses:", responses);
+      console.log("All renewable potential responses:", responses);
       router.push("/model-uncertainties");
     } catch (error) {
-      console.error("❌ Error submitting renewable potential:", error);
+      console.error("Error submitting renewable potential:", error);
       setCsvErrors((prev) => ({
         ...prev,
         [components[currentComponent].tech_key]:
@@ -312,12 +358,12 @@ export default function RenewablePotentialPage() {
 
   const getSeasonColor = (season: string, index: number): string => {
     const colors = [
-      "#3b82f6", // blue
-      "#f59e0b", // amber
-      "#10b981", // emerald
-      "#ef4444", // red
-      "#8b5cf6", // violet
-      "#f97316", // orange
+      "#3b82f6",
+      "#f59e0b",
+      "#10b981",
+      "#ef4444",
+      "#8b5cf6",
+      "#f97316",
     ];
     return colors[index % colors.length];
   };
@@ -349,7 +395,6 @@ export default function RenewablePotentialPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header */}
       <header className="bg-[#FABC5F] px-6 py-4">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center space-x-2">
@@ -380,7 +425,6 @@ export default function RenewablePotentialPage() {
         </div>
       </header>
 
-      {/* Progress Bar */}
       <div className="bg-gray-100 px-6 py-4">
         <div className="max-w-7xl mx-auto">
           <div className="flex items-center justify-between mb-2">
@@ -396,20 +440,16 @@ export default function RenewablePotentialPage() {
         </div>
       </div>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <p className="text-lg mb-8 max-w-4xl">
-          Welcome to the Renewable Potential page, here you can input
-          site-specific renewable resource data by uploading CSV files or
+        <p className="text-lg mb-8 max-w-4xl text-justify">
+          Input site-specific renewable resource data by uploading CSV files or
           retrieving data directly from the PVGIS API for solar production and
           wind speed. Customize wind energy generation using power curves, and
           provide mini-hydro potential via uploaded flow rate data.
         </p>
 
         <div className="relative">
-          {/* Component Carousel */}
           <div className="border rounded-lg p-8 min-h-[500px] flex items-center justify-between">
-            {/* Navigation Arrow Left */}
             <button
               onClick={prevComponent}
               disabled={currentComponent === 0}
@@ -418,9 +458,7 @@ export default function RenewablePotentialPage() {
               <ChevronLeft className="w-6 h-6" />
             </button>
 
-            {/* Component Content */}
             <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-12 mx-16">
-              {/* Left Side - Component Info and Actions */}
               <div className="space-y-6">
                 <div className="text-center">
                   <div className="flex justify-center items-center mb-2">
@@ -438,76 +476,134 @@ export default function RenewablePotentialPage() {
                   <div>
                     <p className="text-gray-700 mb-4">{current.description}</p>
 
-                    {/* Only show for Solar PV */}
                     {current.tech_key === "solar_pv" && (
                       <div className="mb-4 space-y-2">
-                        <div>
-                          <label className="block font-medium mb-1">
-                            Component Name
-                          </label>
-                          <input
-                            type="text"
-                            value={componentName}
-                            onChange={(e) => setComponentName(e.target.value)}
-                            className="border rounded px-2 py-1 w-full"
-                            placeholder="e.g. CS3U-350MS"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-medium mb-1">
-                            Nominal Capacity [kW]
-                          </label>
-                          <input
-                            type="number"
-                            value={nominalCapacity}
-                            onChange={(e) =>
-                              setNominalCapacity(Number(e.target.value))
-                            }
-                            className="border rounded px-2 py-1 w-full"
-                            placeholder="e.g. 1.0"
-                          />
-                        </div>
-                        <div>
-                          <label className="block font-medium mb-1">
-                            Inverter Efficiency [%]
-                          </label>
-                          <input
-                            type="number"
-                            value={inverterEfficiency}
-                            onChange={(e) =>
-                              setInverterEfficiency(Number(e.target.value))
-                            }
-                            className="border rounded px-2 py-1 w-full"
-                            placeholder="e.g. 95"
-                          />
+                        <div className="rounded-xl bg-[#FFF7E6] border border-[#FABC5F] p-6 mb-4">
+                          <div className="space-y-4">
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="font-medium">
+                                  Component Name
+                                </label>
+                                <span title="Enter the PV module name">
+                                  <Info className="w-4 h-4 text-gray-400" />
+                                </span>
+                              </div>
+                              <input
+                                type="text"
+                                value={componentName}
+                                onChange={(e) =>
+                                  setComponentName(e.target.value)
+                                }
+                                className="border rounded px-2 py-1 w-full bg-white"
+                                placeholder="e.g. CS3U-350MS"
+                              />
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="font-medium">
+                                  Nominal Capacity [kW]
+                                </label>
+                                <span title="Enter the nominal capacity in kW">
+                                  <Info className="w-4 h-4 text-gray-400" />
+                                </span>
+                              </div>
+                              <input
+                                type="number"
+                                value={nominalCapacity}
+                                onChange={(e) =>
+                                  setNominalCapacity(Number(e.target.value))
+                                }
+                                className="border rounded px-2 py-1 w-full bg-white"
+                                placeholder="e.g. 1.0"
+                              />
+                            </div>
+                            <div>
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="font-medium">
+                                  Inverter Efficiency [%]
+                                </label>
+                                <span title="Enter the inverter efficiency (0-100)">
+                                  <Info className="w-4 h-4 text-gray-400" />
+                                </span>
+                              </div>
+                              <input
+                                type="number"
+                                value={inverterEfficiency}
+                                onChange={(e) =>
+                                  setInverterEfficiency(Number(e.target.value))
+                                }
+                                className="border rounded px-2 py-1 w-full bg-white"
+                                placeholder="e.g. 95"
+                              />
+                            </div>
+                            <div className="italic text-xs text-gray-600 mt-2">
+                              Upload CSV file with electricity production per
+                              unit of nominal capacity
+                            </div>
+                            <div className="flex items-center justify-between mt-2">
+                              <Button
+                                onClick={() =>
+                                  fileInputRefs.current[
+                                    currentComponent
+                                  ]?.click()
+                                }
+                                variant="outline"
+                                className="flex items-center space-x-2"
+                              >
+                                <Upload className="w-4 h-4" />
+                                <span>Upload CSV file</span>
+                              </Button>
+                              <input
+                                ref={(el) => {
+                                  fileInputRefs.current[currentComponent] = el;
+                                }}
+                                type="file"
+                                accept=".csv"
+                                onChange={(e) =>
+                                  handleFileUpload(e, current.tech_key)
+                                }
+                                className="hidden"
+                              />
+                              <Button
+                                variant="secondary"
+                                className="bg-[#FABC5F] text-black font-semibold px-6 py-2 rounded shadow-none"
+                              >
+                                Save
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
 
-                    <input
-                      ref={(el) => {
-                        fileInputRefs.current[currentComponent] = el;
-                      }}
-                      type="file"
-                      accept=".csv"
-                      onChange={(e) => handleFileUpload(e, current.tech_key)}
-                      className="hidden"
-                    />
-                    <Button
-                      onClick={() =>
-                        fileInputRefs.current[currentComponent]?.click()
-                      }
-                      variant="outline"
-                      className="w-full flex items-center justify-center space-x-2"
-                    >
-                      <Upload className="w-4 h-4" />
-                      <span>Upload CSV file</span>
-                    </Button>
+                 
                     {currentFileName && (
                       <p className="text-sm text-green-600 mt-2">
                         ✅ Uploaded: {currentFileName}
                       </p>
                     )}
+                    <div className="border border-black rounded-xl p-4 flex items-center justify-between bg-white">
+                      <div>
+                        <div className="text-sm text-gray-700 font-medium mb-1">
+                          Download irradiance data from PVGIS API and simulate
+                          PV electricity production
+                        </div>
+                      </div>
+                      <Button
+                        disabled
+                        variant="outline"
+                        className="flex items-center space-x-2 opacity-60 cursor-not-allowed bg-white border-black"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>
+                          Download from{" "}
+                          <span className="text-blue-600 font-semibold">
+                            PVGIS
+                          </span>
+                        </span>
+                      </Button>
+                    </div>
                   </div>
 
                   {currentError && (
@@ -520,7 +616,6 @@ export default function RenewablePotentialPage() {
                     </div>
                   )}
 
-                  {/* CSV Format Help */}
                   <div className="mt-4 p-4 bg-gray-50 rounded-md">
                     <h5 className="font-medium text-sm mb-2">
                       Expected CSV Format:
@@ -540,9 +635,7 @@ export default function RenewablePotentialPage() {
                 </div>
               </div>
 
-              {/* Right Side - Visualization */}
-              <div className="space-y-4">
-                {/* Season Filters */}
+              <div className="space-y-4 mt-12 lg:mt-16">
                 {currentData && (
                   <div className="mb-4">
                     <div className="flex items-center justify-between mb-2">
@@ -580,14 +673,12 @@ export default function RenewablePotentialPage() {
                   </div>
                 )}
 
-                {/* Chart */}
                 <div
                   className="border rounded-lg p-4 bg-white flex items-center justify-center"
                   style={{ minHeight: 350, height: 350 }}
                 >
                   {currentData ? (
                     <svg viewBox="0 0 500 350" width="100%" height="100%">
-                      {/* Grid lines */}
                       {[0, 1, 2, 3, 4, 5].map((i) => (
                         <line
                           key={`h-${i}`}
@@ -611,7 +702,6 @@ export default function RenewablePotentialPage() {
                         />
                       ))}
 
-                      {/* Chart lines */}
                       {currentVisible.map((season, seasonIndex) => {
                         if (!currentData[season]) return null;
                         const maxValue = getMaxValue(current.tech_key);
@@ -638,7 +728,6 @@ export default function RenewablePotentialPage() {
                         );
                       })}
 
-                      {/* Y-axis labels */}
                       {Array.from({ length: 6 }).map((_, i) => (
                         <text
                           key={`y-label-${i}`}
@@ -655,7 +744,6 @@ export default function RenewablePotentialPage() {
                         </text>
                       ))}
 
-                      {/* X-axis labels */}
                       {[0, 4, 8, 12, 16, 20, 24].map((hour, i) => (
                         <text
                           key={`x-label-${hour}`}
@@ -669,7 +757,6 @@ export default function RenewablePotentialPage() {
                         </text>
                       ))}
 
-                      {/* Axis titles */}
                       <text
                         x={260}
                         y={340}
@@ -690,7 +777,6 @@ export default function RenewablePotentialPage() {
                         Production (kWh)
                       </text>
 
-                      {/* Legend */}
                       {currentVisible.length > 0 && (
                         <g>
                           <rect
@@ -749,7 +835,6 @@ export default function RenewablePotentialPage() {
               </div>
             </div>
 
-            {/* Navigation Arrow Right */}
             <button
               onClick={nextComponent}
               disabled={currentComponent === components.length - 1}
@@ -759,21 +844,19 @@ export default function RenewablePotentialPage() {
             </button>
           </div>
 
-          {/* Component Indicators */}
           <div className="flex justify-center mt-6 space-x-2">
             {components.map((_, index) => (
               <button
                 key={index}
                 onClick={() => setCurrentComponent(index)}
                 className={`w-3 h-3 rounded-full ${
-                  index === currentComponent ? "bg-orange-400" : "bg-gray-300"
+                  index === currentComponent ? "bg-[#FABC5F]" : "bg-gray-300"
                 }`}
               />
             ))}
           </div>
         </div>
 
-        {/* Navigation Buttons */}
         <div className="flex justify-end mt-12 space-x-4">
           <Link href="/load-demand">
             <Button variant="outline" className="px-8 py-2">
@@ -789,7 +872,6 @@ export default function RenewablePotentialPage() {
           </Button>
         </div>
 
-        {/* Error Message */}
         {renewablesPotentialMutation.error && (
           <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-md">
             <p className="text-red-600">

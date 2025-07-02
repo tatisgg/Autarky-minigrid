@@ -72,7 +72,7 @@ export default function ResultsPage() {
     setLoading(true);
     setError(null);
     fetch(
-      `https://autarky-website-backend.onrender.com/results?project_id=${projectId}`,
+      `https://autarky-website-backend.onrender.com/results?project_id=fd2211c5-d2ac-4205-bb8c-7ad479242c84`
     )
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
@@ -341,7 +341,9 @@ export default function ResultsPage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
-                    label
+                    label={({ name, value }) =>
+                      `${name}: ${Number(value).toLocaleString()} kUSD`
+                    }
                   >
                     {pieData.map((entry, idx) => (
                       <Cell
@@ -476,11 +478,11 @@ export default function ResultsPage() {
                 {/* Load as line */}
                 <Line
                   type="monotone"
-                  dataKey="load"
+                  dataKey="loadDemand"
                   stroke={COLOR_DICT["Load Demand (kWh)"]}
                   strokeWidth={2}
                   dot={false}
-                  name="Load"
+                  name="Load Demand"
                 />
               </AreaChart>
             </ResponsiveContainer>

@@ -14,7 +14,6 @@ import { useLoadDemand } from "@/hooks/use-api";
 import Papa from "papaparse";
 
 interface LoadProfile {
-
   [season: string]: number[];
 }
 
@@ -255,10 +254,9 @@ export default function LoadDemandPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
         <p className="text-lg mb-8 max-w-4xl">
-          Welcome to the Load Demand page, here you can upload time-series data
-          for each consumption profile or generate synthetic data using RAMP.
-          Visualize and review your inputs to ensure realistic and site-specific
-          demand modeling.
+          Upload time-series data for each consumption profile or generate
+          synthetic data using RAMP. Visualize and review your inputs to ensure
+          realistic and site-specific demand modeling.
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -269,7 +267,7 @@ export default function LoadDemandPage() {
               demand profiles using the integrated RAMP simulation tool.
             </h3>
 
-            <div className="border rounded-lg p-6 space-y-6">
+            <div className="border rounded-lg p-8 space-y-6">
               <div>
                 <h4 className="text-lg font-medium mb-4">
                   Aggregated Load Demand
@@ -396,7 +394,7 @@ export default function LoadDemandPage() {
               </div>
             )}
 
-            <div className="border rounded-lg p-4 h-80 bg-white flex items-center justify-center">
+            <div className="border rounded-lg p-4  bg-white flex items-center justify-center">
               {loadData ? (
                 <div className="w-full h-full relative">
                   {/* Chart container with white background */}

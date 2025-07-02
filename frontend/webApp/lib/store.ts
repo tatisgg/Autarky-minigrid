@@ -14,7 +14,7 @@ interface ProjectData {
   time_resolution: string
   seasonality_enabled: boolean
   seasonality_option: string
-  typical_profile: string
+ operation_timesteps: number
 }
 
 interface ProjectStore {
@@ -36,7 +36,7 @@ const initialProjectData: ProjectData = {
   time_resolution: "hourly",
   seasonality_enabled: false,
   seasonality_option: "2 seasons",
-  typical_profile: "day",
+ operation_timesteps:24
 }
 
 export const useProjectStore = create<ProjectStore>()(

@@ -12,6 +12,14 @@ import { useSystemConfiguration } from "@/hooks/use-api";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import LayoutDiagram from "@/components/layout-diagram";
 import Image from "next/image";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import ComponentsPage from "@/app/components/page";
 
 export default function SystemConfigurationPage() {
   const router = useRouter();
@@ -22,120 +30,117 @@ export default function SystemConfigurationPage() {
   const [availableLayouts, setAvailableLayouts] = useState<any[]>([]);
   const [isClient, setIsClient] = useState(false);
 
-  // Define all possible layouts
+  // Updated layouts with proper filtering logic
   const allLayouts = [
     {
       id: 1,
-      name: "Solar + Battery + AC Load (Fully AC Off-Grid)",
+      name: "Solar Off-Grid AC-Coupled Minigrid",
       description:
         "Solar PV connected to a battery via a charge controller. The battery feeds an inverter, which powers the AC load. This simple off-grid setup is ideal for household-scale or micro-enterprise usage.",
       components: ["solar_pv", "battery"],
       requires_ac: true,
       requires_grid: false,
+      layout_key: "layout_1",
     },
     {
       id: 2,
-      name: "Solar + Battery + Grid (Fully AC On-Grid)",
+      name: "Hybrid Off-Grid AC-Coupled Minigrid (Solar + Battery + Diesel)",
       description:
-        "Solar PV charges the battery, which discharges through an inverter to supply the AC load. The grid supplements supply when solar and battery are insufficient and can charge the battery when needed.",
-      components: ["solar_pv", "battery", "grid_connection"],
+        "Solar PV and diesel generator charge the battery. The inverter supplies the AC load. Diesel covers peak or nighttime demand, while solar provides the daytime base load.",
+      components: ["solar_pv", "battery", "diesel_generator"],
       requires_ac: true,
-      requires_grid: true,
+      requires_grid: false,
+      layout_key: "layout_2",
     },
     {
       id: 3,
-      name: "Hybrid AC Mini-Grid (Solar + Diesel + Battery)",
-      description:
-        "Solar PV and diesel generator charge the battery. The inverter supplies the AC load. Diesel covers peak or nighttime demand, while solar provides the daytime base load.",
-      components: ["solar_pv", "diesel_generator", "battery"],
-      requires_ac: true,
-      requires_grid: false,
-    },
-    {
-      id: 4,
-      name: "Fully Renewable AC Mini-Grid (Solar + Wind + Battery)",
-      description:
-        "Solar and wind turbine feed a battery storage system. The battery discharges through an inverter to power the AC load. Wind compensates for solar variability.",
-      components: ["solar_pv", "wind_turbine", "battery"],
-      requires_ac: true,
-      requires_grid: false,
-    },
-    {
-      id: 5,
-      name: "DC Microgrid (Solar + Battery + DC Load)",
-      description:
-        "Solar PV charges the battery directly via a charge controller. The battery powers DC loads without needing an inverter, suitable for telecom towers, appliances, or small productive systems.",
-      components: ["solar_pv", "battery"],
-      requires_ac: false,
-      requires_grid: false,
-    },
-    {
-      id: 6,
-      name: "Hydro + Battery + AC Load",
-      description:
-        "Mini-hydro generator powers the AC load and charges the battery. The battery supports load balancing and covers demand fluctuations or dry season variations.",
-      components: ["mini_hydro", "battery"],
-      requires_ac: true,
-      requires_grid: false,
-    },
-    {
-      id: 7,
-      name: "Solar + Battery + DC + AC Loads",
-      description:
-        "Battery powers both DC and AC loads via direct feed and inverter. Useful in systems with mixed appliances.",
-      components: ["solar_pv", "battery"],
-      requires_ac: true,
-      requires_grid: false,
-    },
-    {
-      id: 8,
-      name: "Wind + Battery + AC Load (Off-Grid)",
-      description:
-        "Wind turbine charges the battery, which powers the AC load through an inverter. Useful in areas with strong wind resources and limited solar potential.",
-      components: ["wind_turbine", "battery"],
-      requires_ac: true,
-      requires_grid: false,
-    },
-    {
-      id: 9,
-      name: "Biogas + Battery + AC Load",
-      description:
-        "Dispatchable biogas generator feeds the inverter and charges the battery. Battery provides short-term balancing; inverter supplies AC loads.",
-      components: ["biogas_generator", "battery"],
-      requires_ac: true,
-      requires_grid: false,
-    },
-    {
-      id: 10,
-      name: "On-Grid + Diesel Backup + AC Load",
-      description:
-        "Grid supplies AC loads under normal conditions. Diesel generator provides backup power through the inverter when the grid is unavailable.",
-      components: ["grid_connection", "diesel_generator"],
-      requires_ac: true,
-      requires_grid: true,
-    },
-    {
-      id: 11,
-      name: "Solar + Biogas + Grid + Battery + AC Load",
-      description:
-        "Solar and biogas feed a battery that supplies AC load via an inverter. Grid acts as a backup or peak provider. Fully renewable primary generation, with grid support.",
-      components: [
-        "solar_pv",
-        "biogas_generator",
-        "grid_connection",
-        "battery",
-      ],
-      requires_ac: true,
-      requires_grid: true,
-    },
-    {
-      id: 12,
-      name: "Solar + Diesel + AC Load (No battery)",
+      name: "Solar Diesel Off-Grid AC-Coupled Minigrid",
       description:
         "Solar PV covers daytime loads, diesel handles evening peaks. Simplified system without storage.",
       components: ["solar_pv", "diesel_generator"],
       requires_ac: true,
       requires_grid: false,
+      layout_key: "layout_3",
+    },
+    {
+      id: 4,
+      name: "Solar On-Grid AC-Coupled Minigrid",
+      description:
+        "Solar PV charges the battery, which discharges through an inverter to supply the AC load. The grid supplements supply when solar and battery are insufficient and can charge the battery when needed.",
+      components: ["solar_pv", "battery", "grid_connection"],
+      requires_ac: true,
+      requires_grid: true,
+      layout_key: "layout_4",
+    },
+    {
+      id: 5,
+      name: "Hybrid On-Grid AC-Coupled Minigrid",
+      description:
+        "Solar and diesel with grid connection for backup power and peak demand management.",
+      components: ["solar_pv", "diesel_generator", "grid_connection"],
+      requires_ac: true,
+      requires_grid: true,
+      layout_key: "layout_5",
+    },
+    {
+      id: 6,
+      name: "Solar Biogas Off-Grid AC-Coupled Minigrid",
+      description:
+        "Solar PV and biogas generator provide renewable energy sources for AC loads through inverter system.",
+      components: ["solar_pv", "biogas_generator"],
+      requires_ac: true,
+      requires_grid: false,
+      layout_key: "layout_6",
+    },
+    {
+      id: 7,
+      name: "Hybrid Off-Grid AC-Coupled Minigrid (Solar + Battery + Biogas)",
+      description:
+        "Solar and biogas feed a battery that supplies AC load via an inverter. Fully renewable primary generation with biogas backup.",
+      components: ["solar_pv", "battery", "biogas_generator"],
+      requires_ac: true,
+      requires_grid: false,
+      layout_key: "layout_7",
+    },
+    {
+      id: 8,
+      name: "Solar Hydro Off-Grid AC-Coupled Minigrid",
+      description:
+        "Solar PV and mini-hydro with battery storage for reliable renewable energy supply.",
+      components: ["solar_pv", "mini_hydro", "battery"],
+      requires_ac: true,
+      requires_grid: false,
+      layout_key: "layout_8",
+    },
+    {
+      id: 9,
+      name: "Mini-Hydro Off-Grid AC-Coupled Minigrid",
+      description:
+        "Solar PV and mini-hydro generator provide consistent renewable power for AC loads.",
+      components: ["solar_pv", "mini_hydro"],
+      requires_ac: true,
+      requires_grid: false,
+      layout_key: "layout_9",
+    },
+    {
+      id: 10,
+      name: "Solar Off-Grid DC-Coupled Minigrid",
+      description:
+        "Solar PV charges the battery directly via a charge controller. The battery powers DC loads without needing an inverter, suitable for telecom towers, appliances, or small productive systems.",
+      components: ["solar_pv", "battery"],
+      requires_ac: false,
+      requires_grid: false,
+      layout_key: "layout_10",
+    },
+    {
+      id: 11,
+      name: "Wind Off-Grid AC-Coupled Minigrid",
+      description:
+        "Wind turbine charges the battery, which powers the AC load through an inverter. Useful in areas with strong wind resources and limited solar potential.",
+      components: ["wind_turbine", "battery"],
+      requires_ac: true,
+      requires_grid: false,
+      layout_key: "layout_11",
     },
   ];
 
@@ -143,30 +148,50 @@ export default function SystemConfigurationPage() {
     setIsClient(true);
   }, []);
 
-  // Filter layouts based on selected components
+  // Updated filtering logic based on your specifications
   useEffect(() => {
     const enabledComponents = Object.entries(config.enabled_components)
       .filter(([_, enabled]) => enabled)
       .map(([component]) => component);
 
-    const filteredLayouts = allLayouts.filter((layout) => {
-      // Check if all required components for this layout are enabled
-      const hasAllRequiredComponents = layout.components.every((component) =>
-        enabledComponents.includes(component)
+    const { grid_connection, fully_ac } = config.enabled_components;
+
+    let filteredLayouts = [];
+
+    if (!grid_connection && fully_ac) {
+      // Grid Connection = FALSE, Fully AC = TRUE
+      const offGridACLayouts = [1, 2, 3, 6, 7, 8, 9, 11];
+      filteredLayouts = allLayouts.filter(
+        (layout) =>
+          offGridACLayouts.includes(layout.id) &&
+          layout.components.every((component) =>
+            enabledComponents.includes(component)
+          )
       );
-
-      // Check if grid connection requirement matches
-      const gridMatch =
-        (layout.requires_grid && config.enabled_components.grid_connection) ||
-        (!layout.requires_grid && !config.enabled_components.grid_connection);
-
-      // Check if AC system requirement matches
-      const acMatch =
-        (layout.requires_ac && config.enabled_components.fully_ac) ||
-        !layout.requires_ac;
-
-      return hasAllRequiredComponents && gridMatch && acMatch;
-    });
+    } else if (grid_connection && fully_ac) {
+      // Grid Connection = TRUE, Fully AC = TRUE
+      const onGridACLayouts = [4, 5];
+      filteredLayouts = allLayouts.filter(
+        (layout) =>
+          onGridACLayouts.includes(layout.id) &&
+          layout.components.every((component) =>
+            enabledComponents.includes(component)
+          )
+      );
+    } else if (!grid_connection && !fully_ac) {
+      // Grid Connection = FALSE, Fully AC = FALSE
+      const offGridDCLayouts = [10];
+      filteredLayouts = allLayouts.filter(
+        (layout) =>
+          offGridDCLayouts.includes(layout.id) &&
+          layout.components.every((component) =>
+            enabledComponents.includes(component)
+          )
+      );
+    } else {
+      // Grid Connection = TRUE, Fully AC = FALSE (no layouts defined)
+      filteredLayouts = [];
+    }
 
     setAvailableLayouts(
       filteredLayouts.length > 0 ? filteredLayouts : allLayouts
@@ -285,11 +310,10 @@ export default function SystemConfigurationPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <p className="text-lg mb-8 max-w-4xl">
-          Use the component toggles and design mode filters to define your
-          system setup. Then choose from a set of realistic, validated layouts
-          to configure how the selected elements are connected through AC and/or
-          DC buses to meet your energy needs.
+        <p className="text-lg mb-8 max-w-4xl ">
+          Use the component toggles to define your system setup and choose from
+          a set of mini-grids layouts to configure how the selected elements are
+          connected through AC and/or DC buses.
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -302,10 +326,19 @@ export default function SystemConfigurationPage() {
 
             <div className="relative border rounded-lg p-4 h-80 flex items-center justify-center mb-4 bg-white">
               {/* Layout Diagram */}
-              <LayoutDiagram
-                layoutId={currentLayout.id}
-                className="max-w-full max-h-full"
-              />
+              <div className="w-full h-full flex items-center justify-center">
+                <Image
+                  src={`/layouts/${currentLayout.layout_key}.PNG`}
+                  alt={currentLayout.name}
+                  width={300}
+                  height={200}
+                  className="max-w-full max-h-full object-contain"
+                  onError={(e) => {
+                    // Fallback to generic diagram if specific image not found
+                    e.currentTarget.src = "/layouts/default-layout.png";
+                  }}
+                />
+              </div>
 
               {/* Navigation Arrows */}
               <button
@@ -341,15 +374,15 @@ export default function SystemConfigurationPage() {
 
             {/* Renewables Technologies */}
             <div className="mb-6">
-              <h4 className="font-medium mb-3">Renewables Technologies</h4>
+              <h4 className="font-medium mb-3 ">Renewables</h4>
               <div className="grid grid-cols-3 gap-4">
                 {/* Solar PV */}
                 <div
                   className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
                     ${
                       config.enabled_components.solar_pv
-                        ? "bg-yellow-100 border-yellow-300"
-                        : "bg-gray-100 border-gray-300 opacity-70"
+                        ? "bg-yellow-100 border-gray-300 shadow-md"
+                        : "bg-gray-100 border-gray-300 opacity-70 hover:opacity-90"
                     }`}
                   onClick={() =>
                     handleComponentToggle(
@@ -366,15 +399,16 @@ export default function SystemConfigurationPage() {
                       height={40}
                     />
                   </div>
-                  <span className="text-sm">Solar PV</span>
+                  <span className="text-sm font-medium">Solar PV</span>
                 </div>
+
                 {/* Mini-Hydro */}
                 <div
                   className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
                     ${
                       config.enabled_components.mini_hydro
-                        ? "bg-yellow-100 border-yellow-300"
-                        : "bg-gray-100 border-gray-300 opacity-70"
+                        ? "bg-yellow-100 border-gray-300 shadow-md"
+                        : "bg-gray-100 border-gray-300 opacity-70 hover:opacity-90"
                     }`}
                   onClick={() =>
                     handleComponentToggle(
@@ -391,15 +425,16 @@ export default function SystemConfigurationPage() {
                       height={40}
                     />
                   </div>
-                  <span className="text-sm">Mini-Hydro</span>
+                  <span className="text-sm font-medium">Mini-Hydro</span>
                 </div>
+
                 {/* Wind Turbine */}
                 <div
                   className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
                     ${
                       config.enabled_components.wind_turbine
-                        ? "bg-yellow-100 border-yellow-300"
-                        : "bg-gray-100 border-gray-300 opacity-70"
+                        ? "bg-yellow-100 border-gray-300 shadow-md"
+                        : "bg-gray-100 border-gray-300 opacity-70 hover:opacity-90"
                     }`}
                   onClick={() =>
                     handleComponentToggle(
@@ -416,92 +451,105 @@ export default function SystemConfigurationPage() {
                       height={40}
                     />
                   </div>
-                  <span className="text-sm">Wind Turbine</span>
+                  <span className="text-sm font-medium">Wind Turbine</span>
                 </div>
               </div>
             </div>
 
-            {/* Fuel Generators and Storage */}
-            <div className="grid grid-cols-3 gap-4 mb-6">
-              {/* Diesel */}
-              <div
-                className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
-                  ${
-                    config.enabled_components.diesel_generator
-                      ? "bg-yellow-100 border-yellow-300"
-                      : "bg-gray-100 border-gray-300 opacity-70"
-                  }`}
-                onClick={() =>
-                  handleComponentToggle(
-                    "diesel_generator",
-                    !config.enabled_components.diesel_generator
-                  )
-                }
-              >
-                <div className="mb-2">
-                  <Image
-                    src="/Icons/generator.svg"
-                    alt="Diesel"
-                    width={40}
-                    height={40}
-                  />
+            {/* Fuel Generators */}
+            <div className="mb-6">
+              <h4 className="font-medium mb-3">
+                Fuel Generators
+              </h4>
+              <div className="grid grid-cols-2 gap-4">
+                {/* Diesel */}
+                <div
+                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
+                    ${
+                      config.enabled_components.diesel_generator
+                        ? "bg-yellow-100 border-gray-300 shadow-md"
+                        : "bg-gray-100 border-gray-300 opacity-70 hover:opacity-90"
+                    }`}
+                  onClick={() =>
+                    handleComponentToggle(
+                      "diesel_generator",
+                      !config.enabled_components.diesel_generator
+                    )
+                  }
+                >
+                  <div className="mb-2">
+                    <Image
+                      src="/Icons/generator.svg"
+                      alt="Diesel"
+                      width={40}
+                      height={40}
+                    />
+                  </div>
+                  <span className="text-sm font-medium">Diesel</span>
                 </div>
-                <span className="text-sm">Diesel</span>
+
+                {/* Biomass */}
+                <div
+                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
+                    ${
+                      config.enabled_components.biogas_generator
+                        ? "bg-yellow-100 border-gray-300 shadow-md"
+                        : "bg-gray-100 border-gray-300 opacity-70 hover:opacity-90"
+                    }`}
+                  onClick={() =>
+                    handleComponentToggle(
+                      "biogas_generator",
+                      !config.enabled_components.biogas_generator
+                    )
+                  }
+                >
+                  <div className="mb-2">
+                    <Image
+                      src="/Icons/biogas.svg"
+                      alt="Biomass"
+                      width={40}
+                      height={40}
+                    />
+                  </div>
+                  <span className="text-sm font-medium">Biomass</span>
+                </div>
               </div>
-              {/* Biomass */}
-              <div
-                className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
-                  ${
-                    config.enabled_components.biogas_generator
-                      ? "bg-yellow-100 border-yellow-300"
-                      : "bg-gray-100 border-gray-300 opacity-70"
-                  }`}
-                onClick={() =>
-                  handleComponentToggle(
-                    "biogas_generator",
-                    !config.enabled_components.biogas_generator
-                  )
-                }
-              >
-                <div className="mb-2">
-                  <Image
-                    src="/Icons/biogas.svg"
-                    alt="Biomass"
-                    width={40}
-                    height={40}
-                  />
+            </div>
+
+            {/* Storage */}
+            <div className="mb-6">
+              <h4 className="font-medium mb-3 ">Storage</h4>
+              <div className="grid grid-cols-1 gap-4">
+                {/* Battery */}
+                <div
+                  className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition w-1/3
+                    ${
+                      config.enabled_components.battery
+                        ? "bg-yellow-100 border-gray-300 shadow-md"
+                        : "bg-gray-100 border-gray-300 opacity-70 hover:opacity-90"
+                    }`}
+                  onClick={() =>
+                    handleComponentToggle(
+                      "battery",
+                      !config.enabled_components.battery
+                    )
+                  }
+                >
+                  <div className="mb-2">
+                    <Image
+                      src="/Icons/accumulator.svg"
+                      alt="Battery"
+                      width={40}
+                      height={40}
+                    />
+                  </div>
+                  <span className="text-sm font-medium">Battery</span>
                 </div>
-                <span className="text-sm">Biomass</span>
-              </div>
-              {/* Battery */}
-              <div
-                className={`border rounded-lg p-4 flex flex-col items-center justify-center cursor-pointer transition
-                  ${
-                    config.enabled_components.battery
-                      ? "bg-yellow-100 border-yellow-300"
-                      : "bg-gray-100 border-gray-300 opacity-70"
-                  }`}
-                onClick={() =>
-                  handleComponentToggle(
-                    "battery",
-                    !config.enabled_components.battery
-                  )
-                }
-              >
-                <div className="mb-2">
-                  <Image
-                    src="/Icons/accumulator.svg"
-                    alt="Battery"
-                    width={40}
-                    height={40}
-                  />
-                </div>
-                <span className="text-sm">Battery</span>
               </div>
             </div>
 
             {/* System Toggles */}
-            <div className="space-y-4">
+            <div className="space-y-4 mb-6">
               {/* Main Grid Connection */}
               <div className="flex items-center gap-2">
                 <Label htmlFor="grid-connection" className="cursor-pointer">
@@ -516,7 +564,7 @@ export default function SystemConfigurationPage() {
                 />
                 {/* Info icon with tooltip */}
                 <span className="relative group cursor-pointer ml-1">
-                  <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-center leading-5 font-bold">
+                  <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-center leading-5 font-bold text-xs">
                     i
                   </span>
                   <span className="absolute left-1/2 z-10 -translate-x-1/2 mt-2 w-72 p-2 rounded bg-black text-white text-xs opacity-0 group-hover:opacity-100 transition pointer-events-none">
@@ -527,6 +575,7 @@ export default function SystemConfigurationPage() {
                   </span>
                 </span>
               </div>
+
               {/* Fully AC System */}
               <div className="flex items-center gap-2">
                 <Label htmlFor="fully-ac" className="cursor-pointer">
@@ -541,7 +590,7 @@ export default function SystemConfigurationPage() {
                 />
                 {/* Info icon with tooltip */}
                 <span className="relative group cursor-pointer ml-1">
-                  <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-center leading-5 font-bold">
+                  <span className="inline-block w-5 h-5 rounded-full bg-gray-200 text-gray-700 text-center leading-5 font-bold text-xs">
                     i
                   </span>
                   <span className="absolute left-1/2 z-10 -translate-x-1/2 mt-2 w-72 p-2 rounded bg-black text-white text-xs opacity-0 group-hover:opacity-100 transition pointer-events-none">
@@ -552,6 +601,13 @@ export default function SystemConfigurationPage() {
                   </span>
                 </span>
               </div>
+            </div>
+
+            {/* Components Information Link - Moved here */}
+            <div className="mb-6">
+              <a href="/components" target="_blank" className="text-black-600 underline text-sm">
+                Want to know more about Autarky modules?
+              </a>
             </div>
           </div>
         </div>

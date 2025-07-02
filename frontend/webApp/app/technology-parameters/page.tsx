@@ -127,6 +127,7 @@ export default function TechnologyParametersPage() {
   const [isClient, setIsClient] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -163,6 +164,14 @@ export default function TechnologyParametersPage() {
       alert("Project ID is missing.");
       return;
     }
+
+    // Validate parameters before submission
+    const validationError = validateParams();
+    if (validationError) {
+      alert(validationError);
+      return;
+    }
+
     const payload = {
       project_id: projectId,
       economic_settings: {
@@ -183,6 +192,69 @@ export default function TechnologyParametersPage() {
       },
     });
   };
+
+  // Parameter validation function
+  function validateParams() {
+    const { technology_parameters } = params;
+
+    // --- Solar PV ---
+    if (params.selectedComponent === "solar_pv") {
+      const p = technology_parameters.solar_pv;
+      if (!p) return "Solar PV parameters are missing.";
+      if (!(p.investment_cost > 0)) return "Investment cost must be > 0.";
+      if (!(p.operation_cost >= 0 && p.operation_cost <= 100))
+        return "Operation cost must be between 0 and 100.";
+      if (!(p.subsidy >= 0 && p.subsidy <= 100))
+        return "Subsidy must be between 0 and 100.";
+      if (!(Number.isInteger(p.lifetime) && p.lifetime > 0))
+        return "Lifetime must be an integer > 0.";
+    }
+
+    // --- Battery ---
+    if (params.selectedComponent === "battery") {
+      const p = technology_parameters.battery;
+      if (!p) return "Battery parameters are missing.";
+      if (!(p.nominal_capacity > 0)) return "Nominal Capacity must be > 0.";
+      if (!(p.investment_cost > 0)) return "Investment cost must be > 0.";
+      if (!(p.operation_cost >= 0 && p.operation_cost <= 100))
+        return "Operation cost must be between 0 and 100.";
+      if (!(Number.isInteger(p.lifetime) && p.lifetime > 0))
+        return "Lifetime must be an integer > 0.";
+      if (!(Number.isInteger(p.charge_time) && p.charge_time > 0))
+        return "Charge time must be an integer > 0.";
+      if (!(Number.isInteger(p.discharge_time) && p.discharge_time > 0))
+        return "Discharge time must be an integer > 0.";
+      if (!(p.charging_efficiency >= 0 && p.charging_efficiency <= 100))
+        return "Charging efficiency must be between 0 and 100.";
+      if (!(p.discharging_efficiency >= 0 && p.discharging_efficiency <= 100))
+        return "Discharging efficiency must be between 0 and 100.";
+      if (!(p.soc_min >= 0 && p.soc_min <= 100))
+        return "Minimum SOC must be between 0 and 100.";
+      if (!(p.soc_max >= 0 && p.soc_max <= 100))
+        return "Maximum SOC must be between 0 and 100.";
+      if (!(p.soc_initial >= 0 && p.soc_initial <= 100))
+        return "Initial SOC must be between 0 and 100.";
+    }
+
+    // --- Diesel Generator ---
+    if (params.selectedComponent === "diesel_generator") {
+      const p = technology_parameters.diesel_generator;
+      if (!p) return "Generator parameters are missing.";
+      if (!(p.nominal_capacity > 0)) return "Nominal Capacity must be > 0.";
+      if (!(p.nominal_efficiency >= 0 && p.nominal_efficiency <= 100))
+        return "Nominal efficiency must be between 0 and 100.";
+      if (!(p.investment_cost > 0)) return "Investment cost must be > 0.";
+      if (!(p.operation_cost >= 0 && p.operation_cost <= 100))
+        return "Operation cost must be between 0 and 100.";
+      if (!(Number.isInteger(p.lifetime) && p.lifetime > 0))
+        return "Lifetime must be an integer > 0.";
+      if (!(p.lower_heating_value > 0))
+        return "Lower Heating Value must be > 0.";
+      if (!(p.fuel_cost > 0)) return "Fuel cost must be > 0.";
+    }
+
+    return null; // No error
+  }
 
   // Get enabled components
   const enabledComponents = Object.entries(config.enabled_components)
@@ -789,30 +861,7 @@ export default function TechnologyParametersPage() {
             }
             unit="%"
           />
-          <ToggleField
-            id="diesel-partial-load"
-            label="Enable Partial Load Efficiency"
-            tooltip="Enable modeling of generator efficiency at partial load"
-            checked={!!p.partial_load_enabled}
-            onChange={(checked) =>
-              updateComponentParams("diesel_generator", {
-                partial_load_enabled: !!checked,
-              })
-            }
-          />
-          {p.partial_load_enabled && (
-            <Field
-              id="diesel-efficiency-samples"
-              label="Number of Efficiency Samples"
-              tooltip="Number of points on the efficiency curve"
-              value={p.efficiency_samples}
-              onChange={(v) =>
-                updateComponentParams("diesel_generator", {
-                  efficiency_samples: v,
-                })
-              }
-            />
-          )}
+
           <h4 className="font-semibold mb-2">Economics</h4>
           <Field
             id="diesel-investment-cost"
@@ -976,30 +1025,7 @@ export default function TechnologyParametersPage() {
             }
             unit="%"
           />
-          <ToggleField
-            id="biogas-partial-load"
-            label="Enable Partial Load Efficiency"
-            tooltip="Enable modeling of generator efficiency at partial load"
-            checked={!!p.partial_load_enabled}
-            onChange={(checked) =>
-              updateComponentParams("biogas_generator", {
-                partial_load_enabled: !!checked,
-              })
-            }
-          />
-          {p.partial_load_enabled && (
-            <Field
-              id="biogas-efficiency-samples"
-              label="Number of Efficiency Samples"
-              tooltip="Number of points on the efficiency curve"
-              value={p.efficiency_samples}
-              onChange={(v) =>
-                updateComponentParams("biogas_generator", {
-                  efficiency_samples: v,
-                })
-              }
-            />
-          )}
+
           <h4 className="font-semibold mb-2">Economics</h4>
           <Field
             id="biogas-investment-cost"
@@ -1188,15 +1214,18 @@ export default function TechnologyParametersPage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
         <p className="text-lg mb-8 max-w-4xl">
-          Welcome to the Techno-Economic Parameters page, here you can define
-          the technical and financial characteristics of your energy system.
-          Click on each component in the system layout to view and edit
+          Define the technical and financial characteristics of your energy
+          system. Click on each component on the left to view and edit
           parameters such as efficiency, capacity, investment cost, operational
           cost, and lifetime.
         </p>
+        <p className="text-lg mb-8 max-w-xl">
+          Click on each component in the system layout to display and edit its
+          technical and financial parameters on the right panel.
+        </p>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Left Column - Scrollable Component Cards */}
-          <div className="border rounded-lg p-6 bg-white h-[600px] overflow-y-auto">
+          <div className="border rounded-lg p-6 bg-white  overflow-y-auto">
             {renderComponentCards()}
           </div>
           {/* Right Column - Parameter Panel */}
@@ -1282,7 +1311,15 @@ export default function TechnologyParametersPage() {
             </Button>
           </Link>
           <Button
-            onClick={handleSubmit}
+            onClick={() => {
+              const error = validateParams();
+              if (error) {
+                setValidationError(error);
+                return;
+              }
+              setValidationError(null);
+              handleSubmit();
+            }}
             className="bg-black hover:bg-gray-800 text-white px-8 py-2"
           >
             Next

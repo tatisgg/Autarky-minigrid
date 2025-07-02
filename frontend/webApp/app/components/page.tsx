@@ -80,10 +80,10 @@ export default function ComponentsPage() {
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Autarky Mini-Grids Components</h1>
-          <Info className="w-8 h-8 text-gray-400" />
+        
         </div>
 
-        <p className="text-lg mb-12 max-w-4xl">
+        <p className="text-lg mb-12 max-w-4xl ">
           Autarky has the following <strong>modules</strong> with related
           functionality and input requirements, with the flexibility of
           including any of the following components:
@@ -117,7 +117,7 @@ export default function ComponentsPage() {
         </div>
 
         {/* Navigation Buttons */}
-        <div className="flex justify-between">
+        {/* <div className="flex justify-end space-x-4">
           <Link href="/">
             <Button variant="outline" className="px-8 py-2">
               Back
@@ -128,7 +128,7 @@ export default function ComponentsPage() {
               Next
             </Button>
           </Link>
-        </div>
+        </div> */}
       </main>
     </div>
   );
