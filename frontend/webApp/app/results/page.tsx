@@ -341,7 +341,9 @@ export default function ResultsPage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
-                    label
+                    label={({ name, value }) =>
+                      `${name}: ${Number(value).toLocaleString()} kUSD`
+                    }
                   >
                     {pieData.map((entry, idx) => (
                       <Cell
@@ -476,11 +478,11 @@ export default function ResultsPage() {
                 {/* Load as line */}
                 <Line
                   type="monotone"
-                  dataKey="load"
+                  dataKey="loadDemand"
                   stroke={COLOR_DICT["Load Demand (kWh)"]}
                   strokeWidth={2}
                   dot={false}
-                  name="Load"
+                  name="Load Demand"
                 />
               </AreaChart>
             </ResponsiveContainer>

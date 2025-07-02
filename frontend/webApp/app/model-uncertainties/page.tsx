@@ -137,12 +137,11 @@ export default function ModelUncertaintiesPage() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-6 py-8">
-        <p className="text-lg mb-8 max-w-4xl">
-          Welcome to the Uncertainties page, here you can choose between
-          different Autarky formulations of increasing computational complexity,
-          from linear to advanced probabilistic models, but including more
-          sources of uncertainties related to a weak connection with the main
-          grid.
+        <p className="text-lg mb-8 max-w-4xl text-justify">
+          Choose between different Autarky formulations of increasing
+          computational complexity, from linear to advanced stochastic models,
+          but including more sources of uncertainties related to a weak
+          connection with the main grid.
         </p>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
