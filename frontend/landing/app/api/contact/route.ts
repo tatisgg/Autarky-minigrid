@@ -26,8 +26,8 @@ export async function POST(request: NextRequest) {
 
     // Send notification email to team
     const { data: notificationData, error: notificationError } = await resend.emails.send({
-      from: 'onboarding@resend.dev', // Using Resend's default for testing
-      to: ['onorialessandro1998@gmail.com'], // Your email for testing - forward manually to team
+      from: 'autarky-energy.net', 
+       to: ['tatiana.c.g.grandon@ntnu.no', 'alessandro.onori@ntnu.no'],// Your email for testing - forward manually to team
       subject: `[AUTARKY] Contact Form: ${subject}`,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
