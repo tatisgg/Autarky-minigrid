@@ -11,7 +11,7 @@ interface ProjectSetupData {
   time_resolution: string;
   seasonality_enabled: boolean;
   seasonality_option: string;
- operation_time_steps: number;
+  operation_time_steps: number;
 }
 export const api = {
   projectSetup: async (data: ProjectSetupData) => {
@@ -226,6 +226,12 @@ export const api = {
       economic_settings: {
         discount_rate: Number(data.economic_settings?.discount_rate) || 6.0,
         currency: data.economic_settings?.currency || "USD",
+      },
+      system_constraints: {
+        maximum_lost_load:
+          Number(data.system_constraints?.maximum_lost_load) ?? 0,
+        minimum_renewable_penetration:
+          Number(data.system_constraints?.minimum_renewable_penetration) ?? 0,
       },
       technology_parameters: data.technology_parameters || {},
     };
