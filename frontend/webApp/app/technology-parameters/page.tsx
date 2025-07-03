@@ -1052,30 +1052,28 @@ export default function TechnologyParametersPage() {
                   }
                 }}
               />
-              <label htmlFor="grid-cost-csv">
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="flex items-center gap-2"
-                  asChild={false}
+              <Button
+                type="button"
+                variant="outline"
+                className="flex items-center gap-2"
+                onClick={() => document.getElementById('grid-cost-csv')?.click()}
+              >
+                Upload CSV file
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
                 >
-                  Upload CSV file
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-5 w-5"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
-                    />
-                  </svg>
-                </Button>
-              </label>
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                  />
+                </svg>
+              </Button>
               {gridCostCSV && (
                 <span className="text-xs text-green-700 ml-2">
                   {gridCostCSV.name} uploaded
@@ -1104,7 +1102,7 @@ export default function TechnologyParametersPage() {
           {p.allow_export && (
             <div>
               <div className="text-xs text-gray-500 mb-1">
-                Upload CSV file with electricity grid cost
+                Upload CSV file with electricity grid price
               </div>
               <div className="flex items-center gap-3">
                 <Label className="font-medium">Grid Price (currency/kWh)</Label>
@@ -1125,30 +1123,28 @@ export default function TechnologyParametersPage() {
                     }
                   }}
                 />
-                <label htmlFor="grid-price-csv">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="flex items-center gap-2"
-                    asChild={false}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => document.getElementById('grid-price-csv')?.click()}
+                >
+                  Upload CSV file
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
                   >
-                    Upload CSV file
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      className="h-5 w-5"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                      stroke="currentColor"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
-                      />
-                    </svg>
-                  </Button>
-                </label>
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                    />
+                  </svg>
+                </Button>
                 {gridPriceCSV && (
                   <span className="text-xs text-green-700 ml-2">
                     {gridPriceCSV.name} uploaded
