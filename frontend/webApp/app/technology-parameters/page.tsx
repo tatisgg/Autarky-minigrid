@@ -144,18 +144,48 @@ export default function TechnologyParametersPage() {
   }, []);
 
   // Helper to parse CSV to JS object
-  async function parseCsvFile(file: File) {
-    const text = await file.text();
-    // Simple CSV parser: expects header row with "season", then values
-    // e.g. dry,0.09,0.09,...\nwet,0.11,0.11,...
-    const lines = text.trim().split("\n");
-    const result: any = {};
-    for (const line of lines) {
-      const [season, ...values] = line.split(",");
-      result[season.trim()] = values.map(Number);
+async function parseCsvFile(file: File) {
+  const text = await file.text();
+  console.log('Raw CSV text:', text);
+  
+  // Handle different line endings and clean up
+  const lines = text.trim().split(/\r?\n/).filter(line => line.trim());
+  console.log('Cleaned lines:', lines);
+  
+  const result: any = {};
+  
+  for (const line of lines) {
+    console.log('Processing line:', line);
+    
+    // Handle both comma and semicolon as delimiters
+    const delimiter = line.includes(';') ? ';' : ',';
+    const parts = line.split(delimiter);
+    console.log('Parts:', parts);
+    
+    if (parts.length >= 2) {
+      const season = parts[0].trim().toLowerCase();
+      console.log('Season:', season);
+      
+      if (season === "dry" || season === "wet") {
+        // Get all values except the first column, handle empty values
+        const values = parts.slice(1)
+          .map(v => v.trim())
+          .filter(v => v !== "")
+          .map(v => {
+            const num = Number(v);
+            return isNaN(num) ? null : num;
+          })
+          .filter(v => v !== null);
+        
+        console.log('Final values for', season, ':', values);
+        result[season] = values;
+      }
     }
-    return result;
   }
+  
+  console.log('Final result:', result);
+  return result;
+}
 
   // Only include enabled and filled technology parameters
   const getEnabledTechParams = () => {
