@@ -11,7 +11,7 @@ interface ProjectSetupData {
   time_resolution: string;
   seasonality_enabled: boolean;
   seasonality_option: string;
-  typical_profile: string;
+ operation_time_steps: number;
 }
 export const api = {
   projectSetup: async (data: ProjectSetupData) => {
@@ -34,7 +34,7 @@ export const api = {
       time_resolution: data.time_resolution || "hourly",
       seasonality_enabled: Boolean(data.seasonality_enabled),
       seasonality_option: data.seasonality_option || "2 seasons",
-      typical_profile: data.typical_profile || "day",
+      operation_time_steps: Number(data.operation_time_steps) || 8760,
     };
 
     console.log(

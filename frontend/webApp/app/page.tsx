@@ -55,7 +55,7 @@ export default function LandingPage() {
                 Use Autarky <span className="text-blue-600">Mini-Grids</span> -
                 Online Web Platform
               </h2>
-              <p className="text-gray-700 mb-4">
+              <p className="text-gray-700 mb-4 text-justify">
                 Easily model a <strong>hybrid mini-grid</strong> from scratch
                 with a <strong>dynamic, user-friendly interface</strong>. Select
                 components, define uncertainties, and run optimizations to get{" "}
@@ -99,7 +99,7 @@ export default function LandingPage() {
                 Use Autarky <span className="text-blue-600">Swarm-Grids</span> -
                 Online Web Platform
               </h2>
-              <p className="text-gray-700 mb-4">
+              <p className="text-gray-700 mb-4 text-justify">
                 Easily model and <strong>connect off-grid energy units</strong>{" "}
                 through a user-friendly interface. Configure components,{" "}
                 <strong>optimize energy sharing</strong>, and get efficient

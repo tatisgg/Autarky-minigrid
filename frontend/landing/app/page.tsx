@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import Image from "next/image";
+import ContactForm from "@/components/ContactForm";
 
 const team = [
   {
@@ -302,90 +303,7 @@ export default function Landing() {
       </section>
 
       {/* Contact Section */}
-      <section id="contact" className="bg-gray-50 py-16 md:py-24">
-        <div className="container mx-auto px-4">
-          <div className="max-w-2xl mx-auto text-center">
-            <h2 className="text-3xl md:text-5xl font-bold text-gray-800 mb-8">
-              Contact us
-            </h2>
-            <p className="text-lg text-gray-600 mb-12">
-              Get in touch with us for feedback, questions, or collaboration
-              opportunities.
-            </p>
-
-            <form className="space-y-6">
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label
-                    htmlFor="name"
-                    className="block text-sm font-bold text-gray-700 mb-2 text-left"
-                  >
-                    Name
-                  </label>
-                  <input
-                    type="text"
-                    id="name"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="Your name"
-                  />
-                </div>
-                <div>
-                  <label
-                    htmlFor="email"
-                    className="block text-sm font-bold text-gray-700 mb-2 text-left"
-                  >
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                    placeholder="your@email.com"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="subject"
-                  className="block text-sm font-bold text-gray-700 mb-2 text-left"
-                >
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  id="subject"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  placeholder="What's this about?"
-                />
-              </div>
-
-              <div>
-                <label
-                  htmlFor="message"
-                  className="block text-sm font-bold text-gray-700 mb-2 text-left"
-                >
-                  Message
-                </label>
-                <textarea
-                  id="message"
-                  rows={6}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
-                  placeholder="Tell us more about your inquiry..."
-                ></textarea>
-              </div>
-
-              <Button
-                type="submit"
-                size="lg"
-                className="bg-cyan-500 hover:bg-cyan-600 text-white px-8 py-4 text-lg rounded-lg w-full md:w-auto"
-              >
-                Send Message
-              </Button>
-            </form>
-          </div>
-        </div>
-      </section>
+      <ContactForm />
 
       {/* Footer */}
       <footer className="bg-gray-800 text-white py-8">

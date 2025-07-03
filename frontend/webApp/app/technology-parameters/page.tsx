@@ -269,7 +269,7 @@ export default function TechnologyParametersPage() {
     battery: "/Icons/accumulator.svg",
     diesel_generator: "/Icons/generator.svg",
     biogas_generator: "/Icons/biogas.svg",
-    grid_connection: "/Icons/power-tower.svg",
+    grid_connection: "/Icons/power.svg",
   };
 
   // Left column: scrollable, consistent icons, grid connection if enabled
@@ -1219,7 +1219,7 @@ export default function TechnologyParametersPage() {
           parameters such as efficiency, capacity, investment cost, operational
           cost, and lifetime.
         </p>
-        <p className="text-lg mb-8 max-w-xl">
+        <p className="text-lg mb-8 max-w-xl font-bold">
           Click on each component in the system layout to display and edit its
           technical and financial parameters on the right panel.
         </p>
