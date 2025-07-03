@@ -188,30 +188,39 @@ async function parseCsvFile(file: File) {
 }
 
   // Only include enabled and filled technology parameters
-  const getEnabledTechParams = () => {
-    const enabled = Object.entries(config.enabled_components)
-      .filter(([_, enabled]) => enabled)
-      .map(([component]) => component);
+ const getEnabledTechParams = () => {
+  const enabled = Object.entries(config.enabled_components)
+    .filter(([_, enabled]) => enabled)
+    .map(([component]) => component);
 
-    const techParams: Record<string, any> = {};
-    for (const comp of enabled) {
-      if (params.technology_parameters[comp]) {
-        // Only include fields that are defined and not empty
-        const clean = Object.fromEntries(
-          Object.entries(params.technology_parameters[comp]).filter(
-            ([_, v]) =>
-              v !== undefined &&
-              v !== null &&
-              v !== "" &&
-              // Remove false for booleans, but keep 0 for numbers
-              (typeof v !== "boolean" || v === true)
-          )
-        );
-        if (Object.keys(clean).length > 0) techParams[comp] = clean;
+  const techParams: Record<string, any> = {};
+  for (const comp of enabled) {
+    if (params.technology_parameters[comp]) {
+      // Only include fields that are defined and not empty
+      const clean = Object.fromEntries(
+        Object.entries(params.technology_parameters[comp]).filter(
+          ([k, v]) =>
+            v !== undefined &&
+            v !== null &&
+            v !== "" &&
+            // Remove false for booleans, but keep 0 for numbers
+            (typeof v !== "boolean" || v === true)
+        )
+      );
+
+      // Always include allow_export for grid_connection
+      if (comp === "grid_connection") {
+        clean.allow_export =
+          typeof params.technology_parameters.grid_connection?.allow_export === "boolean"
+            ? params.technology_parameters.grid_connection.allow_export
+            : false;
       }
+
+      if (Object.keys(clean).length > 0) techParams[comp] = clean;
     }
-    return techParams;
-  };
+  }
+  return techParams;
+};
 
   const handleSubmit = async () => {
     if (!projectId) {
