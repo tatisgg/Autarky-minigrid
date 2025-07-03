@@ -110,6 +110,10 @@ type Params = {
     currency: string;
     discount_rate: number;
   };
+  system_constraints: {
+    maximum_lost_load: number;
+    minimum_renewable_penetration: number;
+  };
   selectedComponent?: string;
 };
 
@@ -129,9 +133,59 @@ export default function TechnologyParametersPage() {
   const [error, setError] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Add state for uploaded CSVs at the top of your component:
+  const [gridCostCSV, setGridCostCSV] = useState<File | null>(null);
+  const [gridPriceCSV, setGridPriceCSV] = useState<File | null>(null);
+  const [gridCost, setGridCost] = useState<any>(null);
+  const [gridPrice, setGridPrice] = useState<any>(null);
+
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Helper to parse CSV to JS object
+async function parseCsvFile(file: File) {
+  const text = await file.text();
+  console.log('Raw CSV text:', text);
+  
+  // Handle different line endings and clean up
+  const lines = text.trim().split(/\r?\n/).filter(line => line.trim());
+  console.log('Cleaned lines:', lines);
+  
+  const result: any = {};
+  
+  for (const line of lines) {
+    console.log('Processing line:', line);
+    
+    // Handle both comma and semicolon as delimiters
+    const delimiter = line.includes(';') ? ';' : ',';
+    const parts = line.split(delimiter);
+    console.log('Parts:', parts);
+    
+    if (parts.length >= 2) {
+      const season = parts[0].trim().toLowerCase();
+      console.log('Season:', season);
+      
+      if (season === "dry" || season === "wet") {
+        // Get all values except the first column, handle empty values
+        const values = parts.slice(1)
+          .map(v => v.trim())
+          .filter(v => v !== "")
+          .map(v => {
+            const num = Number(v);
+            return isNaN(num) ? null : num;
+          })
+          .filter(v => v !== null);
+        
+        console.log('Final values for', season, ':', values);
+        result[season] = values;
+      }
+    }
+  }
+  
+  console.log('Final result:', result);
+  return result;
+}
 
   // Only include enabled and filled technology parameters
   const getEnabledTechParams = () => {
@@ -177,6 +231,11 @@ export default function TechnologyParametersPage() {
       economic_settings: {
         discount_rate: params.project_economic_settings.discount_rate,
         currency: params.project_economic_settings.currency,
+      },
+      system_constraints: {
+        maximum_lost_load: params.system_constraints.maximum_lost_load,
+        minimum_renewable_penetration:
+          params.system_constraints.minimum_renewable_penetration,
       },
       technology_parameters: getEnabledTechParams(),
     };
@@ -252,6 +311,17 @@ export default function TechnologyParametersPage() {
         return "Lower Heating Value must be > 0.";
       if (!(p.fuel_cost > 0)) return "Fuel cost must be > 0.";
     }
+
+    if (
+      params.system_constraints.maximum_lost_load < 0 ||
+      params.system_constraints.maximum_lost_load > 100
+    )
+      return "Maximum lost load must be between 0 and 100.";
+    if (
+      params.system_constraints.minimum_renewable_penetration < 0 ||
+      params.system_constraints.minimum_renewable_penetration > 100
+    )
+      return "Minimum renewable penetration must be between 0 and 100.";
 
     return null; // No error
   }
@@ -956,30 +1026,163 @@ export default function TechnologyParametersPage() {
     if (selectedComponent === "grid_connection") {
       const p = params.technology_parameters.grid_connection || {};
       return (
-        <div>
-          <ToggleField
-            id="grid-allow-export"
-            label="Allow Grid Export"
-            tooltip="Allow exporting electricity to the main grid"
-            checked={!!p.allow_export}
-            onChange={(checked) =>
-              updateComponentParams("grid_connection", {
-                allow_export: !!checked,
-              })
-            }
-          />
-          <Field
-            id="grid-line-capacity"
-            label="Max Line Capacity"
-            tooltip="Maximum power transfer capacity of the grid connection"
-            value={p.line_capacity}
-            onChange={(v) =>
-              updateComponentParams("grid_connection", { line_capacity: v })
-            }
-            unit="kW"
-          />
-          {/* TODO: Add CSV uploaders for grid_cost and grid_price if needed */}
-          {/* You can add file uploaders here and update the store accordingly */}
+        <div className="border rounded-xl p-6 bg-white">
+          <div className="mb-6">
+            <div className="flex items-center gap-2 mb-1">
+              <Label htmlFor="grid-line-capacity" className="font-semibold">
+                Maximum Line Capacity (kW)
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-4 w-4 text-gray-400" />
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>
+                      Maximum power transfer capacity of the grid connection
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Input
+              id="grid-line-capacity"
+              type="number"
+              value={p.line_capacity ?? ""}
+              onChange={(e) =>
+                updateComponentParams("grid_connection", {
+                  line_capacity: Number.parseFloat(e.target.value) || 0,
+                })
+              }
+              className="w-1/2"
+            />
+          </div>
+
+          {/* Grid Cost */}
+          <div className="mb-6">
+            <div className="text-xs text-gray-500 mb-1">
+              Upload CSV file with electricity grid cost
+            </div>
+            <div className="flex items-center gap-3">
+              <Label className="font-medium">Grid Cost (currency/kWh)</Label>
+              <Input
+                type="file"
+                accept=".csv"
+                className="hidden"
+                id="grid-cost-csv"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0] || null;
+                  setGridCostCSV(file);
+                  if (file) {
+                    const parsed = await parseCsvFile(file);
+                    setGridCost(parsed);
+                    updateComponentParams("grid_connection", {
+                      grid_cost: parsed,
+                    });
+                  }
+                }}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="flex items-center gap-2"
+                onClick={() => document.getElementById('grid-cost-csv')?.click()}
+              >
+                Upload CSV file
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  className="h-5 w-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                  />
+                </svg>
+              </Button>
+              {gridCostCSV && (
+                <span className="text-xs text-green-700 ml-2">
+                  {gridCostCSV.name} uploaded
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Allow Export Toggle */}
+          <div className="mb-6 flex items-center gap-3">
+            <Label htmlFor="grid-allow-export" className="font-medium">
+              Allow Export to the Grid
+            </Label>
+            <Checkbox
+              id="grid-allow-export"
+              checked={!!p.allow_export}
+              onCheckedChange={(checked) =>
+                updateComponentParams("grid_connection", {
+                  allow_export: !!checked,
+                })
+              }
+            />
+          </div>
+
+          {/* Grid Price (only if export allowed) */}
+          {p.allow_export && (
+            <div>
+              <div className="text-xs text-gray-500 mb-1">
+                Upload CSV file with electricity grid price
+              </div>
+              <div className="flex items-center gap-3">
+                <Label className="font-medium">Grid Price (currency/kWh)</Label>
+                <Input
+                  type="file"
+                  accept=".csv"
+                  className="hidden"
+                  id="grid-price-csv"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0] || null;
+                    setGridPriceCSV(file);
+                    if (file) {
+                      const parsed = await parseCsvFile(file);
+                      setGridPrice(parsed);
+                      updateComponentParams("grid_connection", {
+                        grid_price: parsed,
+                      });
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="flex items-center gap-2"
+                  onClick={() => document.getElementById('grid-price-csv')?.click()}
+                >
+                  Upload CSV file
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5-5m0 0l5 5m-5-5v12"
+                    />
+                  </svg>
+                </Button>
+                {gridPriceCSV && (
+                  <span className="text-xs text-green-700 ml-2">
+                    {gridPriceCSV.name} uploaded
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       );
     }
@@ -1292,6 +1495,87 @@ export default function TechnologyParametersPage() {
                     }
                     className="mt-1"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* System Constraints */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold mb-4">System Constraints</h3>
+              <div className="grid grid-cols-2 gap-6">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="max-lost-load">Maximum Lost Load:</Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-gray-400" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>
+                            Maximum percentage of total demand that can be unmet
+                            (0–100%).
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="flex items-center">
+                    <Input
+                      id="max-lost-load"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={params.system_constraints.maximum_lost_load}
+                      onChange={(e) =>
+                        updateSystemConstraints({
+                          maximum_lost_load:
+                            Number.parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="mt-1"
+                    />
+                    <span className="ml-2">%</span>
+                  </div>
+                </div>
+                <div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="min-renewable-penetration">
+                      Minimum Renewable Penetration:
+                    </Label>
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-4 w-4 text-gray-400" />
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p>
+                            Minimum percentage of demand to be met by renewables
+                            (0–100%).
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  </div>
+                  <div className="flex items-center">
+                    <Input
+                      id="min-renewable-penetration"
+                      type="number"
+                      min={0}
+                      max={100}
+                      value={
+                        params.system_constraints.minimum_renewable_penetration
+                      }
+                      onChange={(e) =>
+                        updateSystemConstraints({
+                          minimum_renewable_penetration:
+                            Number.parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      className="mt-1"
+                    />
+                    <span className="ml-2">%</span>
+                  </div>
                 </div>
               </div>
             </div>
