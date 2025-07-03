@@ -10,16 +10,8 @@ import { useSystemConfigStore } from "@/lib/system-config-store";
 import { useProjectStore } from "@/lib/store";
 import { useSystemConfiguration } from "@/hooks/use-api";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
-import LayoutDiagram from "@/components/layout-diagram";
 import Image from "next/image";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import ComponentsPage from "@/app/components/page";
+
 
 export default function SystemConfigurationPage() {
   const router = useRouter();
@@ -330,8 +322,8 @@ export default function SystemConfigurationPage() {
                 <Image
                   src={`/layouts/${currentLayout.layout_key}.PNG`}
                   alt={currentLayout.name}
-                  width={300}
-                  height={200}
+                  width={600}
+                  height={600}
                   className="max-w-full max-h-full object-contain"
                   onError={(e) => {
                     // Fallback to generic diagram if specific image not found

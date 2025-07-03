@@ -19,6 +19,7 @@ import { Upload, Info } from "lucide-react";
 import Image from "next/image";
 import { useModelUncertainties } from "@/hooks/use-api";
 import { useProjectStore } from "@/lib/store";
+import { useSystemConfigStore } from "@/lib/system-config-store";
 
 export default function ModelUncertaintiesPage() {
   const router = useRouter();
@@ -27,8 +28,25 @@ export default function ModelUncertaintiesPage() {
   const [selectedModel, setSelectedModel] = useState("linear");
   const [gridConnected, setGridConnected] = useState(false);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadOrSimulate, setUploadOrSimulate] = useState<
+    "upload" | "simulate"
+  >("upload");
+  const [avgOutages, setAvgOutages] = useState("");
+  const [avgDuration, setAvgDuration] = useState("");
+  const [simulationResult, setSimulationResult] = useState(false);
+
+  // Add toggles for load demand and solar PV for demo (expand as needed)
+  const [simulateLoad, setSimulateLoad] = useState(true);
+  const [simulatePV, setSimulatePV] = useState(false);
+  const [loadCSVs, setLoadCSVs] = useState<{ [season: string]: File | null }>(
+    {}
+  );
+  const [pvCSVs, setPvCSVs] = useState<{ [season: string]: File | null }>({});
+  const [iccJcc, setIccJcc] = useState<"icc" | "jcc">("icc");
+  const [probIslanding, setProbIslanding] = useState("");
 
   const projectId = useProjectStore((state) => state.projectId);
+  const setModelFormulation = useProjectStore((s) => s.setModelFormulation);
 
   // API mutation
   const mutation = useModelUncertainties();
@@ -45,19 +63,18 @@ export default function ModelUncertaintiesPage() {
     }
   };
 
+  const handleSimulateGridAvailability = async () => {
+    // Call your backend simulation endpoint here if needed
+    setSimulationResult(true);
+  };
+
   const handleSubmit = async () => {
     if (!projectId) {
       alert("Project ID is missing.");
       return;
     }
 
-    // Validation
-    if (selectedModel === "linear" && gridConnected && !uploadedFile) {
-      alert(
-        "Please upload a grid availability CSV file for grid-connected linear model."
-      );
-      return;
-    }
+    setModelFormulation(selectedModel); // <-- Save the user's choice
 
     const payload: any = {
       project_id: projectId,
@@ -65,21 +82,31 @@ export default function ModelUncertaintiesPage() {
       grid_connected: gridConnected,
     };
 
-    // Add grid availability CSV if uploaded (future implementation)
-    if (uploadedFile) {
-      // payload.grid_availability_csv = uploadedFile; // This would be handled differently in real implementation
+    if (selectedModel === "linear" && gridConnected) {
+      if (uploadOrSimulate === "upload") {
+        if (!uploadedFile) {
+          alert("Please upload a grid availability CSV file.");
+          return;
+        }
+        payload.grid_availability_csv = uploadedFile;
+      } else if (uploadOrSimulate === "simulate") {
+        if (!avgOutages || !avgDuration) {
+          alert("Please enter simulation parameters.");
+          return;
+        }
+        payload.simulate_grid_availability = {
+          avg_outages: Number(avgOutages),
+          avg_duration: Number(avgDuration),
+        };
+      }
     }
 
     mutation.mutate(payload, {
       onSuccess: () => {
-        router.push("/optimize"); // Go to the new optimize page
+        router.push("/optimize");
       },
       onError: (error: any) => {
-        console.error("API Error:", error);
-        alert(
-          "Failed to submit model uncertainties: " +
-            (error?.message || "Unknown error")
-        );
+        alert("Failed to submit: " + (error?.message || "Unknown error"));
       },
     });
   };
@@ -143,13 +170,18 @@ export default function ModelUncertaintiesPage() {
           but including more sources of uncertainties related to a weak
           connection with the main grid.
         </p>
-
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           {/* Left Column - Model Selection */}
           <div className="space-y-6">
             <RadioGroup value={selectedModel} onValueChange={setSelectedModel}>
               {/* Linear Model */}
-              <div className="border rounded-lg p-6 bg-blue-50 border-blue-200">
+              <div
+                className={`border rounded-lg p-6 ${
+                  selectedModel === "linear"
+                    ? "bg-blue-50 border-blue-200"
+                    : "bg-white border-gray-200"
+                }`}
+              >
                 <div className="flex items-center space-x-3">
                   <RadioGroupItem value="linear" id="linear" />
                   <Label htmlFor="linear" className="text-lg font-medium">
@@ -163,48 +195,49 @@ export default function ModelUncertaintiesPage() {
                   randomness.
                 </p>
               </div>
-
               {/* Expected Values Model */}
-              <div className="border rounded-lg p-6 bg-gray-50 border-gray-200">
+              <div
+                className={`border rounded-lg p-6 ${
+                  selectedModel === "expected"
+                    ? "bg-blue-50 border-blue-200"
+                    : "border-gray-200 bg-white"
+                } bg-white`}
+              >
                 <div className="flex items-center space-x-3">
-                  <RadioGroupItem value="expected" id="expected" disabled />
-                  <Label
-                    htmlFor="expected"
-                    className="text-lg font-medium text-gray-400"
-                  >
+                  <RadioGroupItem value="expected" id="expected" />
+                  <Label htmlFor="expected" className="text-lg font-medium">
                     Use Autarky{" "}
-                    <span className="text-purple-400">
-                      Expected Values Model
-                    </span>
+                    <span className="text-blue-600">Expected Values Model</span>
                   </Label>
                 </div>
-                <p className="text-sm text-gray-400 mt-3 ml-7">
+                <p className="text-sm text-gray-600 mt-3 ml-7">
                   The expected-value model incorporates forecast errors for
                   renewable production and demand by replacing random variables
                   with their expected values, simplifying the problem but
                   ignoring variability.
                 </p>
               </div>
-
               {/* Advanced Probabilistic Model */}
-              <div className="border rounded-lg p-6 bg-gray-50 border-gray-200">
+              <div
+                className={`border rounded-lg p-6 ${
+                  selectedModel === "probabilistic"
+                    ? "bg-blue-50 border-blue-200"
+                    : "border-gray-200"
+                } bg-white`}
+              >
                 <div className="flex items-center space-x-3">
-                  <RadioGroupItem
-                    value="probabilistic"
-                    id="probabilistic"
-                    disabled
-                  />
+                  <RadioGroupItem value="probabilistic" id="probabilistic" />
                   <Label
                     htmlFor="probabilistic"
-                    className="text-lg font-medium text-gray-400"
+                    className="text-lg font-medium"
                   >
                     Use Autarky{" "}
-                    <span className="text-purple-400">
+                    <span className="text-blue-600">
                       Advanced Probabilistic Models
                     </span>
                   </Label>
                 </div>
-                <p className="text-sm text-gray-400 mt-3 ml-7">
+                <p className="text-sm text-gray-600 mt-3 ml-7">
                   Advanced probabilistic models apply individual (ICC) or joint
                   chance constraints (JCC) to account for forecasting errors and
                   main grid outages, explicitly incorporating the probability of
@@ -217,52 +250,97 @@ export default function ModelUncertaintiesPage() {
 
           {/* Right Column - Parameters */}
           <div className="space-y-6">
-            <div className="border rounded-lg p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium">
-                  Upload Grid Availability matrix
-                </h3>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Info className="h-4 w-4 text-gray-400" />
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p>
-                        CSV file containing grid availability data over time
+            {/* Only show if grid connection is enabled and linear model is selected */}
+            {selectedModel === "linear" && gridConnected && (
+              <div className="border rounded-lg p-6 space-y-6">
+                <div className="mb-4">
+                  <RadioGroup
+                    value={uploadOrSimulate}
+                    onValueChange={setUploadOrSimulate}
+                    className="flex gap-6"
+                  >
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="upload" id="upload" />
+                      <Label htmlFor="upload">
+                        Upload Grid Availability CSV
+                      </Label>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <RadioGroupItem value="simulate" id="simulate" />
+                      <Label htmlFor="simulate">
+                        Simulate Grid Availability
+                      </Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {uploadOrSimulate === "upload" && (
+                  <>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".csv"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      variant="outline"
+                      className="w-full flex items-center justify-center space-x-2"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <Upload className="w-4 h-4" />
+                      <span>
+                        {uploadedFile
+                          ? `Uploaded: ${uploadedFile.name}`
+                          : "Upload CSV file"}
+                      </span>
+                    </Button>
+                    {uploadedFile && (
+                      <p className="text-sm text-green-600 mt-2">
+                        ✓ Grid availability file uploaded successfully
                       </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                    )}
+                  </>
+                )}
+
+                {uploadOrSimulate === "simulate" && (
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Average Number of Outages per Year</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={avgOutages}
+                        onChange={(e) => setAvgOutages(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label>Average Duration per Outage (hours)</Label>
+                      <Input
+                        type="number"
+                        min={0}
+                        value={avgDuration}
+                        onChange={(e) => setAvgDuration(e.target.value)}
+                        className="mt-1"
+                      />
+                    </div>
+                    <Button
+                      variant="secondary"
+                      onClick={handleSimulateGridAvailability}
+                      className="w-full"
+                    >
+                      Simulate Grid Availability
+                    </Button>
+                    {simulationResult && (
+                      <p className="text-green-600 text-sm mt-2">
+                        Simulation complete! (You can proceed.)
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
-
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".csv"
-                onChange={handleFileUpload}
-                className="hidden"
-              />
-
-              <Button
-                variant="outline"
-                className="w-full flex items-center justify-center space-x-2"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <Upload className="w-4 h-4" />
-                <span>
-                  {uploadedFile
-                    ? `Uploaded: ${uploadedFile.name}`
-                    : "Upload CSV file"}
-                </span>
-              </Button>
-
-              {uploadedFile && (
-                <p className="text-sm text-green-600 mt-2">
-                  ✓ Grid availability file uploaded successfully
-                </p>
-              )}
-            </div>
+            )}
           </div>
         </div>
 

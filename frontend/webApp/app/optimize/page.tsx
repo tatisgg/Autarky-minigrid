@@ -31,11 +31,13 @@ export default function OptimizePage() {
   const projectId = useProjectStore((state) => state.projectId);
 
   // Model formulation state (should come from previous step/store)
-  const [formulation, setFormulation] = useState("linear");
+  const formulation =
+    useProjectStore((state) => state.selectedModelFormulation) || "linear";
+  const [formulationState, setFormulation] = useState(formulation);
 
   // Solver state
   const [solver, setSolver] = useState(
-    formulation === "linear" ? "HiGHS" : "Ipopt"
+    formulationState === "linear" ? "HiGHS" : "Ipopt"
   );
   const [customOptionsOpen, setCustomOptionsOpen] = useState(false);
 
@@ -49,7 +51,8 @@ export default function OptimizePage() {
   const mutation = useModelOptimize();
 
   // Update solver when formulation changes
-  const compatibleSolvers = SOLVER_OPTIONS[formulation];
+  const compatibleSolvers = SOLVER_OPTIONS[formulationState];
+
   // If current solver is not compatible, reset to default
   if (!compatibleSolvers.find((s) => s.value === solver)) {
     setSolver(compatibleSolvers[0].value);
@@ -134,21 +137,6 @@ export default function OptimizePage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Solver selection and options */}
           <div>
-            {/* Model Formulation Selector */}
-            <div className="mb-4">
-              <Label className="block mb-2">Model Formulation:</Label>
-              <select
-                value={formulation}
-                onChange={(e) => setFormulation(e.target.value)}
-                className="border rounded px-3 py-2"
-              >
-                {FORMULATION_OPTIONS.map((f) => (
-                  <option key={f.value} value={f.value}>
-                    {f.label}
-                  </option>
-                ))}
-              </select>
-            </div>
             {/* Solver Dropdown */}
             <div className="mb-4">
               <Label className="block mb-2">Solver Options:</Label>

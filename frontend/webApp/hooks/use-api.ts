@@ -16,7 +16,7 @@ export function useProjectSetup() {
   time_resolution: string;
   seasonality_enabled: boolean;
   seasonality_option: string;
-  typical_profile: string;
+  operation_timesteps: number;
 }
 
   return useMutation({
