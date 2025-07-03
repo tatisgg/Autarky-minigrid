@@ -19,6 +19,7 @@ import { useSystemConfigStore } from "@/lib/system-config-store";
 import Image from "next/image";
 import { Info } from "lucide-react";
 import { useTechnologyParameters } from "@/hooks/use-api";
+import Papa from "papaparse";
 
 // Add or update your types at the top of your file or import them from your store
 type DieselGeneratorParams = {
@@ -125,6 +126,7 @@ export default function TechnologyParametersPage() {
     updateEconomicSettings,
     updateComponentParams,
     selectComponent,
+    updateSystemConstraints,
   } = useTechParamsStore();
   const { config } = useSystemConfigStore();
   const mutation = useTechnologyParameters();
@@ -144,83 +146,78 @@ export default function TechnologyParametersPage() {
   }, []);
 
   // Helper to parse CSV to JS object
-async function parseCsvFile(file: File) {
-  const text = await file.text();
-  console.log('Raw CSV text:', text);
-  
-  // Handle different line endings and clean up
-  const lines = text.trim().split(/\r?\n/).filter(line => line.trim());
-  console.log('Cleaned lines:', lines);
-  
-  const result: any = {};
-  
-  for (const line of lines) {
-    console.log('Processing line:', line);
-    
-    // Handle both comma and semicolon as delimiters
-    const delimiter = line.includes(';') ? ';' : ',';
-    const parts = line.split(delimiter);
-    console.log('Parts:', parts);
-    
-    if (parts.length >= 2) {
-      const season = parts[0].trim().toLowerCase();
-      console.log('Season:', season);
-      
-      if (season === "dry" || season === "wet") {
-        // Get all values except the first column, handle empty values
-        const values = parts.slice(1)
-          .map(v => v.trim())
-          .filter(v => v !== "")
-          .map(v => {
-            const num = Number(v);
-            return isNaN(num) ? null : num;
-          })
-          .filter(v => v !== null);
-        
-        console.log('Final values for', season, ':', values);
-        result[season] = values;
-      }
-    }
+  async function parseCsvFile(file: File): Promise<Record<string, number[]>> {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          try {
+            const data = results.data as any[];
+            if (!data || data.length === 0) {
+              reject(new Error("CSV file is empty"));
+              return;
+            }
+            const firstRow = data[0];
+            const seasonColumns: string[] = Object.keys(firstRow).filter(
+              (key) => key.trim() !== ""
+            );
+            const parsedData: Record<string, number[]> = {};
+            data.forEach((row) => {
+              seasonColumns.forEach((season) => {
+                const value = Number(row[season]);
+                if (!parsedData[season]) parsedData[season] = [];
+                parsedData[season].push(isNaN(value) ? 0 : value);
+              });
+            });
+            resolve(parsedData);
+          } catch (err) {
+            reject(err);
+          }
+        },
+        error: (error) => {
+          reject(error);
+        },
+      });
+    });
   }
-  
-  console.log('Final result:', result);
-  return result;
-}
 
   // Only include enabled and filled technology parameters
- const getEnabledTechParams = () => {
-  const enabled = Object.entries(config.enabled_components)
-    .filter(([_, enabled]) => enabled)
-    .map(([component]) => component);
+  const getEnabledTechParams = () => {
+    const enabled = Object.entries(config.enabled_components)
+      .filter(([_, enabled]) => enabled)
+      .map(([component]) => component);
 
-  const techParams: Record<string, any> = {};
-  for (const comp of enabled) {
-    if (params.technology_parameters[comp]) {
-      // Only include fields that are defined and not empty
-      const clean = Object.fromEntries(
-        Object.entries(params.technology_parameters[comp]).filter(
-          ([k, v]) =>
-            v !== undefined &&
-            v !== null &&
-            v !== "" &&
-            // Remove false for booleans, but keep 0 for numbers
-            (typeof v !== "boolean" || v === true)
-        )
-      );
+    const techParams: Record<string, any> = {};
+    for (const comp of enabled) {
+      if (params.technology_parameters[comp]) {
+        // Only include fields that are defined and not empty
+        const clean = Object.fromEntries(
+          Object.entries(params.technology_parameters[comp]).filter(
+            ([k, v]) =>
+              v !== undefined &&
+              v !== null &&
+              v !== "" &&
+              // Remove false for booleans, but keep 0 for numbers
+              (typeof v !== "boolean" || v === true)
+          )
+        );
 
-      // Always include allow_export for grid_connection
-      if (comp === "grid_connection") {
-        clean.allow_export =
-          typeof params.technology_parameters.grid_connection?.allow_export === "boolean"
-            ? params.technology_parameters.grid_connection.allow_export
-            : false;
+        // Always include allow_export for grid_connection
+        if (comp === "grid_connection") {
+          clean.allow_export =
+            typeof params.technology_parameters.grid_connection
+              ?.allow_export === "boolean"
+              ? params.technology_parameters.grid_connection.allow_export
+              : false;
+        }
+
+        if (Object.keys(clean).length > 0) techParams[comp] = clean;
       }
-
-      if (Object.keys(clean).length > 0) techParams[comp] = clean;
     }
-  }
-  return techParams;
-};
+    return techParams;
+  };
 
   const handleSubmit = async () => {
     if (!projectId) {
@@ -228,12 +225,13 @@ async function parseCsvFile(file: File) {
       return;
     }
 
-    // Validate parameters before submission
     const validationError = validateParams();
     if (validationError) {
       alert(validationError);
       return;
     }
+
+    setIsLoading(true); // <-- set loading
 
     const payload = {
       project_id: projectId,
@@ -250,9 +248,11 @@ async function parseCsvFile(file: File) {
     };
     mutation.mutate(payload, {
       onSuccess: () => {
+        setIsLoading(false); // <-- stop loading
         router.push("/load-demand");
       },
       onError: (error: any) => {
+        setIsLoading(false); // <-- stop loading
         alert(
           "Error submitting technology parameters: " +
             (error?.message || "Unknown error")
@@ -1095,7 +1095,9 @@ async function parseCsvFile(file: File) {
                 type="button"
                 variant="outline"
                 className="flex items-center gap-2"
-                onClick={() => document.getElementById('grid-cost-csv')?.click()}
+                onClick={() =>
+                  document.getElementById("grid-cost-csv")?.click()
+                }
               >
                 Upload CSV file
                 <svg
@@ -1166,7 +1168,9 @@ async function parseCsvFile(file: File) {
                   type="button"
                   variant="outline"
                   className="flex items-center gap-2"
-                  onClick={() => document.getElementById('grid-price-csv')?.click()}
+                  onClick={() =>
+                    document.getElementById("grid-price-csv")?.click()
+                  }
                 >
                   Upload CSV file
                   <svg
@@ -1614,8 +1618,9 @@ async function parseCsvFile(file: File) {
               handleSubmit();
             }}
             className="bg-black hover:bg-gray-800 text-white px-8 py-2"
+            disabled={isLoading} // <-- disable while loading
           >
-            Next
+            {isLoading ? "Saving..." : "Next"}
           </Button>
         </div>
       </main>

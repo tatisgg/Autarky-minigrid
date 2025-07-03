@@ -195,26 +195,41 @@ export default function RenewablePotentialPage() {
 
     const { operation_timesteps, seasonality_option } =
       useProjectStore.getState().projectData;
-    const expectedSeasons = seasonality_option === "4 seasons" ? 4 : 2;
+    const expectedSeasons =
+      seasonality_option === "4 seasons"
+        ? 4
+        : seasonality_option === "2 seasons"
+        ? 2
+        : 1;
 
     const firstRow = data[0];
-    const columns: string[] = Object.keys(firstRow).filter(
+    let columns: string[] = Object.keys(firstRow).filter(
       (key) => key.trim() !== ""
     );
 
-    if (columns.length < expectedSeasons) {
+    // If only one column, treat as "all" (no seasonality)
+    let usedColumns: string[];
+    if (columns.length === 1) {
+      usedColumns = [columns[0]];
+    } else {
+      usedColumns = columns.slice(0, expectedSeasons);
+    }
+
+    if (
+      columns.length < expectedSeasons &&
+      expectedSeasons > 1 &&
+      columns.length !== 1
+    ) {
       throw new Error(
-        `CSV must have at least ${expectedSeasons} columns (seasons).`
+        `CSV must have at least ${expectedSeasons} columns (seasons), or a single column for no seasonality.`
       );
     }
-    if (columns.length > expectedSeasons) {
+    if (columns.length > expectedSeasons && expectedSeasons > 1) {
       setCsvErrors((prev) => ({
         ...prev,
         [techKey]: `Warning: CSV has more than ${expectedSeasons} columns. Extra columns will be ignored.`,
       }));
     }
-
-    const usedColumns = columns.slice(0, expectedSeasons);
 
     if (data.length < operation_timesteps) {
       throw new Error(
@@ -228,15 +243,28 @@ export default function RenewablePotentialPage() {
       }));
     }
 
-    const parsedData: RenewableProfile = Object.fromEntries(
-      usedColumns.map((season) => [season, []])
-    );
-    data.slice(0, operation_timesteps).forEach((row) => {
-      usedColumns.forEach((season) => {
-        const value = Number(row[season]);
-        parsedData[season].push(isNaN(value) ? 0 : value);
+    // Build parsedData
+    let parsedData: RenewableProfile;
+    if (usedColumns.length === 1) {
+      // Single column: treat as "all" or the column name
+      const col = usedColumns[0];
+      parsedData = { [col]: [] };
+      data.slice(0, operation_timesteps).forEach((row) => {
+        const value = Number(row[col]);
+        parsedData[col].push(isNaN(value) ? 0 : value);
       });
-    });
+    } else {
+      // Multi-season
+      parsedData = Object.fromEntries(
+        usedColumns.map((season) => [season, []])
+      );
+      data.slice(0, operation_timesteps).forEach((row) => {
+        usedColumns.forEach((season) => {
+          const value = Number(row[season]);
+          parsedData[season].push(isNaN(value) ? 0 : value);
+        });
+      });
+    }
 
     setRenewableData((prev) => ({ ...prev, [techKey]: parsedData }));
     setVisibleSeasons((prev) => ({
@@ -577,7 +605,6 @@ export default function RenewablePotentialPage() {
                       </div>
                     )}
 
-                 
                     {currentFileName && (
                       <p className="text-sm text-green-600 mt-2">
                         ✅ Uploaded: {currentFileName}
