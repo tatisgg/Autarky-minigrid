@@ -89,7 +89,7 @@ const initialParams: TechnologyParameters = {
     currency: "USD",
   },
   system_constraints: {
-    maximum_lost_load: 5,
+    maximum_lost_load: 0,
     minimum_renewable_penetration: 70,
   },
   technology_parameters: {

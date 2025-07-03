@@ -542,36 +542,47 @@ export default function TechnologyParametersPage() {
       onChange: (v: number) => void;
       unit?: string;
       inputProps?: React.InputHTMLAttributes<HTMLInputElement>;
-    }) => (
-      <div className="mb-4">
-        <div className="flex items-center gap-2">
-          <Label htmlFor={id}>{label}</Label>
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Info className="h-4 w-4 text-gray-400" />
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>{tooltip}</p>
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+    }) => {
+      const [localValue, setLocalValue] = useState(value ?? "");
+
+      useEffect(() => {
+        setLocalValue(value ?? "");
+      }, [value]);
+
+      return (
+        <div className="mb-4">
+          <div className="flex items-center gap-2">
+            <Label htmlFor={id}>{label}</Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Info className="h-4 w-4 text-gray-400" />
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>{tooltip}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <Input
+              id={id}
+              type="number"
+              value={localValue}
+              onChange={(e) => setLocalValue(e.target.value)}
+              onBlur={() =>
+                onChange(Number.parseFloat(localValue as string) || 0)
+              }
+              className="w-1/3"
+              {...inputProps}
+            />
+            {unit && (
+              <span className="ml-2 italic text-xs text-gray-500">{unit}</span>
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 mt-1">
-          <Input
-            id={id}
-            type="number"
-            value={value ?? ""}
-            onChange={(e) => onChange(Number.parseFloat(e.target.value) || 0)}
-            className="w-1/3"
-            {...inputProps}
-          />
-          {unit && (
-            <span className="ml-2 italic text-xs text-gray-500">{unit}</span>
-          )}
-        </div>
-      </div>
-    );
+      );
+    };
 
     const TextField = ({
       id,
