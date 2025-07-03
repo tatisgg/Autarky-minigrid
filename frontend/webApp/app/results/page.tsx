@@ -72,7 +72,7 @@ export default function ResultsPage() {
     setLoading(true);
     setError(null);
     fetch(
-      `https://autarky-website-backend.onrender.com/results?project_id=${projectId}`,
+      `https://autarky-website-backend.onrender.com/results?project_id=1a480f84-c667-45aa-a885-926178b63266`,
     )
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
@@ -156,97 +156,98 @@ export default function ResultsPage() {
     URL.revokeObjectURL(url);
   };
 
-  function prepareStackedDispatchData(
-    seasonData: any,
-    options: {
-      onGrid: boolean;
-      allowGridExport: boolean;
-      lostLoad: boolean;
-      uncertainty: boolean;
-    }
-  ) {
-    const n = seasonData["Solar Production (kWh)"]?.length || 0;
-    const result = [];
-
-    let cumulativeOut = Array(n).fill(0);
-    let cumulativeIn = Array(n).fill(0);
-
-    for (let i = 0; i < n; i++) {
-      // Solar
-      const solar = seasonData["Solar Production (kWh)"]?.[i] ?? 0;
-      const generator = seasonData["Generator Production (kWh)"]?.[i] ?? 0;
-      const gridImport = seasonData["Grid Import (kWh)"]?.[i] ?? 0;
-      const gridExport = seasonData["Grid Export (kWh)"]?.[i] ?? 0;
-      const solarCurtail = seasonData["Solar Curtailment (kWh)"]?.[i] ?? 0;
-      const lostLoad = seasonData["Lost Load (kWh)"]?.[i] ?? 0;
-      const load = seasonData["Load Demand (kWh)"]?.[i] ?? 0;
-
-      // Battery
-      const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
-      const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
-      const netBattery = batteryDischarge - batteryCharge;
-      const netDischarge = Math.max(netBattery, 0);
-      const netCharge = Math.max(-netBattery, 0);
-
-      // Cumulative stacking
-      let y0 = cumulativeOut[i];
-      let y1 = y0 + solar;
-      let y2 = y1 + netDischarge;
-      let y3 = y2 + generator;
-      let y4 = y3 + (options.onGrid ? gridImport : 0);
-      let y5 = y4 + (options.lostLoad ? lostLoad : 0);
-
-      let y0_in = -cumulativeIn[i];
-      let y1_in = y0_in - netCharge;
-      let y2_in =
-        y1_in - (options.onGrid && options.allowGridExport ? gridExport : 0);
-
-      result.push({
-        hour: i,
-        solar0: y0,
-        solar1: y1,
-        batteryDischarge0: y1,
-        batteryDischarge1: y2,
-        generator0: y2,
-        generator1: y3,
-        gridImport0: y3,
-        gridImport1: y4,
-        lostLoad0: y4,
-        lostLoad1: y5,
-        batteryCharge0: y0_in,
-        batteryCharge1: y1_in,
-        gridExport0: y1_in,
-        gridExport1: y2_in,
-        load, // for line
-      });
-
-      // Update cumulative
-      cumulativeOut[i] = y5;
-      cumulativeIn[i] = -y2_in;
-    }
-    return result;
+function prepareStackedDispatchData(
+  seasonData: any,
+  options: {
+    onGrid: boolean;
+    allowGridExport: boolean;
+    lostLoad: boolean;
+    uncertainty: boolean;
   }
+) {
+  const n = seasonData["Solar Production (kWh)"]?.length || 0;
+  const result = [];
 
-  function transformSeasonDataForDispatch(seasonData: any) {
-    if (!seasonData?.timestep) return [];
+  let cumulativeOut = Array(n).fill(0);
+  let cumulativeIn = Array(n).fill(0);
 
-    return seasonData.timestep.map((t: number, i: number) => {
-      const batteryCharge = seasonData["charge[kWh]"]?.[i] ?? 0;
-      const batteryDischarge = seasonData["discharge[kWh]"]?.[i] ?? 0;
-      const batteryNet = batteryDischarge - batteryCharge;
-      return {
-        hour: t,
-        solarProduction: seasonData["solar[kWh]"]?.[i] ?? 0,
-        batteryDischarge: Math.max(0, batteryNet),
-        generatorProduction: seasonData["generator[kWh]"]?.[i] ?? 0,
-        gridImport: seasonData["grid_import[kWh]"]?.[i] ?? 0,
-        lostLoad: seasonData["lost_load[kWh]"]?.[i] ?? 0,
-        batteryCharge: -Math.max(0, -batteryNet),
-        gridExport: -(seasonData["grid_export[kWh]"]?.[i] ?? 0),
-        loadDemand: seasonData["load[kWh]"]?.[i] ?? 0,
-      };
+  for (let i = 0; i < n; i++) {
+    // Solar
+    const solar = seasonData["Solar Production (kWh)"]?.[i] ?? 0;
+    const generator = seasonData["Generator Production (kWh)"]?.[i] ?? 0;
+    const gridImport = seasonData["Grid Import (kWh)"]?.[i] ?? 0;
+    const gridExport = seasonData["Grid Export (kWh)"]?.[i] ?? 0;
+    const solarCurtail = seasonData["Solar Curtailment (kWh)"]?.[i] ?? 0;
+    const lostLoad = seasonData["Lost Load (kWh)"]?.[i] ?? 0;
+    const load = seasonData["Load Demand (kWh)"]?.[i] ?? 0; // Fixed this line
+
+    // Battery
+    const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
+    const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
+    const netBattery = batteryDischarge - batteryCharge;
+    const netDischarge = Math.max(netBattery, 0);
+    const netCharge = Math.max(-netBattery, 0);
+
+    // Cumulative stacking
+    let y0 = cumulativeOut[i];
+    let y1 = y0 + solar;
+    let y2 = y1 + netDischarge;
+    let y3 = y2 + generator;
+    let y4 = y3 + (options.onGrid ? gridImport : 0);
+    let y5 = y4 + (options.lostLoad ? lostLoad : 0);
+
+    let y0_in = -cumulativeIn[i];
+    let y1_in = y0_in - netCharge;
+    let y2_in =
+      y1_in - (options.onGrid && options.allowGridExport ? gridExport : 0);
+
+    result.push({
+      hour: i + 1, // Make sure hour starts from 1
+      solar0: y0,
+      solar1: y1,
+      batteryDischarge0: y1,
+      batteryDischarge1: y2,
+      generator0: y2,
+      generator1: y3,
+      gridImport0: y3,
+      gridImport1: y4,
+      lostLoad0: y4,
+      lostLoad1: y5,
+      batteryCharge0: y0_in,
+      batteryCharge1: y1_in,
+      gridExport0: y1_in,
+      gridExport1: y2_in,
+      load: load, // Add load demand for the line chart
     });
+
+    // Update cumulative
+    cumulativeOut[i] = y5;
+    cumulativeIn[i] = -y2_in;
   }
+  return result;
+}
+
+ function transformSeasonDataForDispatch(seasonData: any) {
+  if (!seasonData?.timestep) return [];
+
+  return seasonData.timestep.map((t: number, i: number) => {
+    const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
+    const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
+    const batteryNet = batteryDischarge - batteryCharge;
+    
+    return {
+      hour: t,
+      solarProduction: seasonData["Solar Production (kWh)"]?.[i] ?? 0,
+      batteryDischarge: Math.max(0, batteryNet),
+      generatorProduction: seasonData["Generator Production (kWh)"]?.[i] ?? 0,
+      gridImport: seasonData["Grid Import (kWh)"]?.[i] ?? 0,
+      lostLoad: seasonData["Lost Load (kWh)"]?.[i] ?? 0,
+      batteryCharge: -Math.max(0, -batteryNet),
+      gridExport: -(seasonData["Grid Export (kWh)"]?.[i] ?? 0),
+      loadDemand: seasonData["Load Demand (kWh)"]?.[i] ?? 0, 
+    };
+  });
+}
 
   const stackedData = prepareStackedDispatchData(seasonData, {
     onGrid: true, // or from your config
@@ -399,93 +400,94 @@ export default function ResultsPage() {
                 ))}
               </select>
             </div>
-            <ResponsiveContainer width="100%" height={350}>
-              <AreaChart data={stackedData}>
-                <XAxis dataKey="hour" />
-                <YAxis />
-                <RechartsTooltip />
-                <Legend />
-                {/* Solar */}
-                <Area
-                  type="monotone"
-                  dataKey={(d) => [d.solar0, d.solar1]}
-                  stroke={COLOR_DICT["Solar Production (kWh)"]}
-                  fill={COLOR_DICT["Solar Production (kWh)"]}
-                  fillOpacity={0.5}
-                  isRange
-                  name="Solar Production"
-                />
-                {/* Battery Discharge */}
-                <Area
-                  type="monotone"
-                  dataKey={(d) => [d.batteryDischarge0, d.batteryDischarge1]}
-                  stroke={COLOR_DICT["Battery"]}
-                  fill={COLOR_DICT["Battery"]}
-                  fillOpacity={0.5}
-                  isRange
-                  name="Battery Discharge"
-                />
-                {/* Generator */}
-                <Area
-                  type="monotone"
-                  dataKey={(d) => [d.generator0, d.generator1]}
-                  stroke={COLOR_DICT["Generator Production (kWh)"]}
-                  fill={COLOR_DICT["Generator Production (kWh)"]}
-                  fillOpacity={0.5}
-                  isRange
-                  name="Generator"
-                />
-                {/* Grid Import */}
-                <Area
-                  type="monotone"
-                  dataKey={(d) => [d.gridImport0, d.gridImport1]}
-                  stroke={COLOR_DICT["Grid Import (kWh)"]}
-                  fill={COLOR_DICT["Grid Import (kWh)"]}
-                  fillOpacity={0.5}
-                  isRange
-                  name="Grid Import"
-                />
-                {/* Lost Load */}
-                <Area
-                  type="monotone"
-                  dataKey={(d) => [d.lostLoad0, d.lostLoad1]}
-                  stroke={COLOR_DICT["Lost Load (kWh)"]}
-                  fill={COLOR_DICT["Lost Load (kWh)"]}
-                  fillOpacity={0.5}
-                  isRange
-                  name="Lost Load"
-                />
-                {/* Battery Charge (negative, below axis) */}
-                <Area
-                  type="monotone"
-                  dataKey={(d) => [d.batteryCharge0, d.batteryCharge1]}
-                  stroke={COLOR_DICT["Battery"]}
-                  fill={COLOR_DICT["Battery"]}
-                  fillOpacity={0.5}
-                  isRange
-                  name="Battery Charge"
-                />
-                {/* Grid Export (negative, below axis) */}
-                <Area
-                  type="monotone"
-                  dataKey={(d) => [d.gridExport0, d.gridExport1]}
-                  stroke={COLOR_DICT["Grid Export (kWh)"]}
-                  fill={COLOR_DICT["Grid Export (kWh)"]}
-                  fillOpacity={0.5}
-                  isRange
-                  name="Grid Export"
-                />
-                {/* Load as line */}
-                <Line
-                  type="monotone"
-                  dataKey="loadDemand"
-                  stroke={COLOR_DICT["Load Demand (kWh)"]}
-                  strokeWidth={2}
-                  dot={false}
-                  name="Load Demand"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+         
+<ResponsiveContainer width="100%" height={350}>
+  <ComposedChart data={stackedData}>
+    <XAxis dataKey="hour" />
+    <YAxis />
+    <RechartsTooltip />
+    <Legend />
+    {/* Solar */}
+    <Area
+      type="monotone"
+      dataKey={(d) => [d.solar0, d.solar1]}
+      stroke={COLOR_DICT["Solar Production (kWh)"]}
+      fill={COLOR_DICT["Solar Production (kWh)"]}
+      fillOpacity={0.5}
+      isRange
+      name="Solar Production"
+    />
+    {/* Battery Discharge */}
+    <Area
+      type="monotone"
+      dataKey={(d) => [d.batteryDischarge0, d.batteryDischarge1]}
+      stroke={COLOR_DICT["Battery"]}
+      fill={COLOR_DICT["Battery"]}
+      fillOpacity={0.5}
+      isRange
+      name="Battery Discharge"
+    />
+    {/* Generator */}
+    <Area
+      type="monotone"
+      dataKey={(d) => [d.generator0, d.generator1]}
+      stroke={COLOR_DICT["Generator Production (kWh)"]}
+      fill={COLOR_DICT["Generator Production (kWh)"]}
+      fillOpacity={0.5}
+      isRange
+      name="Generator"
+    />
+    {/* Grid Import */}
+    <Area
+      type="monotone"
+      dataKey={(d) => [d.gridImport0, d.gridImport1]}
+      stroke={COLOR_DICT["Grid Import (kWh)"]}
+      fill={COLOR_DICT["Grid Import (kWh)"]}
+      fillOpacity={0.5}
+      isRange
+      name="Grid Import"
+    />
+    {/* Lost Load */}
+    <Area
+      type="monotone"
+      dataKey={(d) => [d.lostLoad0, d.lostLoad1]}
+      stroke={COLOR_DICT["Lost Load (kWh)"]}
+      fill={COLOR_DICT["Lost Load (kWh)"]}
+      fillOpacity={0.5}
+      isRange
+      name="Lost Load"
+    />
+    {/* Battery Charge (negative, below axis) */}
+    <Area
+      type="monotone"
+      dataKey={(d) => [d.batteryCharge0, d.batteryCharge1]}
+      stroke={COLOR_DICT["Battery"]}
+      fill={COLOR_DICT["Battery"]}
+      fillOpacity={0.5}
+      isRange
+      name="Battery Charge"
+    />
+    {/* Grid Export (negative, below axis) */}
+    <Area
+      type="monotone"
+      dataKey={(d) => [d.gridExport0, d.gridExport1]}
+      stroke={COLOR_DICT["Grid Export (kWh)"]}
+      fill={COLOR_DICT["Grid Export (kWh)"]}
+      fillOpacity={0.5}
+      isRange
+      name="Grid Export"
+    />
+    {/* Load as line - THIS WILL NOW WORK */}
+    <Line
+      type="monotone"
+      dataKey="load"
+      stroke={COLOR_DICT["Load Demand (kWh)"]}
+      strokeWidth={3}
+      dot={false}
+      name="Load Demand"
+    />
+  </ComposedChart>
+</ResponsiveContainer>
             <div className="mt-4 text-sm space-y-1">
               <div>
                 Renewable Penetration:{" "}
