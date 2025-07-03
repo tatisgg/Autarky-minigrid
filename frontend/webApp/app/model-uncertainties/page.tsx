@@ -105,46 +105,68 @@ export default function ModelUncertaintiesPage() {
 
     setModelFormulation(selectedModel);
 
-    // LINEAR + GRID CONNECTED
-    if (selectedModel === "linear" && gridConnected) {
-      if (uploadOrSimulate === "simulate") {
-        if (!simulationResult) {
-          alert("Please run the simulation first.");
-          return;
-        }
-        // Only call /model-uncertainties
-        mutation.mutate(
-          {
-            project_id: projectId,
-            formulation: "linear",
-            grid_connected: true,
-          },
-          {
-            onSuccess: () => router.push("/optimize"),
-            onError: (error: any) => {
-              alert("Failed to submit: " + (error?.message || "Unknown error"));
-            },
+    // LINEAR MODEL
+    if (selectedModel === "linear") {
+      if (gridConnected) {
+        if (uploadOrSimulate === "simulate") {
+          if (!simulationResult) {
+            alert("Please run the simulation first.");
+            return;
           }
-        );
-        return;
-      }
-
-      // UPLOAD CSV
-      if (uploadOrSimulate === "upload") {
-        if (!uploadedFile) {
-          alert("Please upload a grid availability CSV file.");
+          // Only call /model-uncertainties
+          mutation.mutate(
+            {
+              project_id: projectId,
+              formulation: "linear",
+              grid_connected: true,
+            },
+            {
+              onSuccess: () => router.push("/optimize"),
+              onError: (error: any) => {
+                alert(
+                  "Failed to submit: " + (error?.message || "Unknown error")
+                );
+              },
+            }
+          );
           return;
         }
-        // Parse CSV to JS object (implement parseCsvFile)
-        const parsedMatrix = await parseCsvFile(uploadedFile);
+
+        // UPLOAD CSV
+        if (uploadOrSimulate === "upload") {
+          if (!uploadedFile) {
+            alert("Please upload a grid availability CSV file.");
+            return;
+          }
+          // Parse CSV to JS object (implement parseCsvFile)
+          const parsedMatrix = await parseCsvFile(uploadedFile);
+          mutation.mutate(
+            {
+              project_id: projectId,
+              formulation: "linear",
+              grid_connected: true,
+              grid_outage_settings: {
+                availability_matrix: parsedMatrix,
+              },
+            },
+            {
+              onSuccess: () => router.push("/optimize"),
+              onError: (error: any) => {
+                alert(
+                  "Failed to submit: " + (error?.message || "Unknown error")
+                );
+              },
+            }
+          );
+          return;
+        }
+      } else {
+        // Grid not connected: just submit minimal payload
         mutation.mutate(
           {
             project_id: projectId,
             formulation: "linear",
-            grid_connected: true,
-            grid_outage_settings: {
-              availability_matrix: parsedMatrix,
-            },
+            grid_connected: false,
           },
           {
             onSuccess: () => router.push("/optimize"),
@@ -484,9 +506,9 @@ export default function ModelUncertaintiesPage() {
           <Button
             onClick={handleSubmit}
             className="bg-black hover:bg-gray-800 text-white px-8 py-2"
-            disabled={mutation.isLoading}
+            disabled={mutation.status === "pending"}
           >
-            {mutation.isLoading ? "Submitting..." : "Next"}
+            {mutation.status === "pending" ? "Submitting..." : "Next"}
           </Button>
         </div>
       </main>
