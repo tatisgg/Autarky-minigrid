@@ -34,7 +34,7 @@ export const api = {
       time_resolution: data.time_resolution || "hourly",
       seasonality_enabled: Boolean(data.seasonality_enabled),
       seasonality_option: data.seasonality_option || "2 seasons",
-      operation_time_steps: Number(data.operation_time_steps) || 8760,
+      operation_time_steps: Number(data.operation_time_steps) || 0,
     };
 
     console.log(

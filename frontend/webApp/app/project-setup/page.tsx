@@ -137,7 +137,7 @@ export default function ProjectSetupPage() {
       time_resolution: projectData.time_resolution,
       seasonality_enabled: projectData.seasonality_enabled,
       seasonality_option: projectData.seasonality_option,
-      operation_timesteps: projectData.operation_timesteps, // use selected value or fallback
+      operation_time_steps: projectData.operation_timesteps, // use selected value or fallback
     };
 
     console.log(
