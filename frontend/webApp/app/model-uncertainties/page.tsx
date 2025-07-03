@@ -20,15 +20,16 @@ import Image from "next/image";
 import { useModelUncertainties } from "@/hooks/use-api";
 import { useProjectStore } from "@/lib/store";
 import { useSystemConfigStore } from "@/lib/system-config-store";
+import Papa from "papaparse";
 
 export default function ModelUncertaintiesPage() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isClient, setIsClient] = useState(false);
   const [selectedModel, setSelectedModel] = useState("linear");
-const gridConnected = useSystemConfigStore(
-  (state) => state.config.enabled_components.grid_connection
-);
+  const gridConnected = useSystemConfigStore(
+    (state) => state.config.enabled_components.grid_connection
+  );
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadOrSimulate, setUploadOrSimulate] = useState<
     "upload" | "simulate"
@@ -36,6 +37,7 @@ const gridConnected = useSystemConfigStore(
   const [avgOutages, setAvgOutages] = useState("");
   const [avgDuration, setAvgDuration] = useState("");
   const [simulationResult, setSimulationResult] = useState(false);
+  const [isSimulating, setIsSimulating] = useState(false);
 
   // Add toggles for load demand and solar PV for demo (expand as needed)
   const [simulateLoad, setSimulateLoad] = useState(true);
@@ -65,7 +67,33 @@ const gridConnected = useSystemConfigStore(
   };
 
   const handleSimulateGridAvailability = async () => {
-    // Call your backend simulation endpoint here if needed
+    if (!projectId) {
+      alert("Project ID is missing.");
+      return;
+    }
+    if (!avgOutages || !avgDuration) {
+      alert("Please enter simulation parameters.");
+      return;
+    }
+    setIsSimulating(true);
+    const res = await fetch(
+      "https://autarky-website-backend.onrender.com/grid-availability",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          project_id: projectId,
+          avg_outages_per_year: Number(avgOutages),
+          avg_outage_duration: Number(avgDuration),
+        }),
+      }
+    );
+    setIsSimulating(false);
+    if (!res.ok) {
+      alert("Failed to simulate grid availability.");
+      setSimulationResult(false);
+      return;
+    }
     setSimulationResult(true);
   };
 
@@ -75,42 +103,138 @@ const gridConnected = useSystemConfigStore(
       return;
     }
 
-    setModelFormulation(selectedModel); // <-- Save the user's choice
+    setModelFormulation(selectedModel);
 
-    const payload: any = {
-      project_id: projectId,
-      formulation: selectedModel,
-      grid_connected: gridConnected,
-    };
-
+    // LINEAR + GRID CONNECTED
     if (selectedModel === "linear" && gridConnected) {
+      if (uploadOrSimulate === "simulate") {
+        if (!simulationResult) {
+          alert("Please run the simulation first.");
+          return;
+        }
+        // Only call /model-uncertainties
+        mutation.mutate(
+          {
+            project_id: projectId,
+            formulation: "linear",
+            grid_connected: true,
+          },
+          {
+            onSuccess: () => router.push("/optimize"),
+            onError: (error: any) => {
+              alert("Failed to submit: " + (error?.message || "Unknown error"));
+            },
+          }
+        );
+        return;
+      }
+
+      // UPLOAD CSV
       if (uploadOrSimulate === "upload") {
         if (!uploadedFile) {
           alert("Please upload a grid availability CSV file.");
           return;
         }
-        payload.grid_availability_csv = uploadedFile;
-      } else if (uploadOrSimulate === "simulate") {
-        if (!avgOutages || !avgDuration) {
-          alert("Please enter simulation parameters.");
-          return;
-        }
-        payload.simulate_grid_availability = {
-          avg_outages: Number(avgOutages),
-          avg_duration: Number(avgDuration),
-        };
+        // Parse CSV to JS object (implement parseCsvFile)
+        const parsedMatrix = await parseCsvFile(uploadedFile);
+        mutation.mutate(
+          {
+            project_id: projectId,
+            formulation: "linear",
+            grid_connected: true,
+            grid_outage_settings: {
+              availability_matrix: parsedMatrix,
+            },
+          },
+          {
+            onSuccess: () => router.push("/optimize"),
+            onError: (error: any) => {
+              alert("Failed to submit: " + (error?.message || "Unknown error"));
+            },
+          }
+        );
+        return;
       }
     }
 
-    mutation.mutate(payload, {
-      onSuccess: () => {
-        router.push("/optimize");
-      },
-      onError: (error: any) => {
-        alert("Failed to submit: " + (error?.message || "Unknown error"));
-      },
-    });
+    // EXPECTED VALUES MODEL
+    if (selectedModel === "expected") {
+      // Example: You may want to collect forecast error CSVs for load/renewables here
+      // For now, just send the minimal payload
+      mutation.mutate(
+        {
+          project_id: projectId,
+          formulation: "expected_values",
+          grid_connected: !!gridConnected,
+          // Add forecast_errors here if needed
+        },
+        {
+          onSuccess: () => router.push("/optimize"),
+          onError: (error: any) => {
+            alert("Failed to submit: " + (error?.message || "Unknown error"));
+          },
+        }
+      );
+      return;
+    }
+
+    // PROBABILISTIC MODEL (ICC/JCC)
+    if (selectedModel === "probabilistic") {
+      // Example: You may want to collect forecast error CSVs and ICC/JCC params here
+      mutation.mutate(
+        {
+          project_id: projectId,
+          formulation: iccJcc, // "icc" or "jcc"
+          grid_connected: !!gridConnected,
+          // Add forecast_errors and probabilistic_config here if needed
+        },
+        {
+          onSuccess: () => router.push("/optimize"),
+          onError: (error: any) => {
+            alert("Failed to submit: " + (error?.message || "Unknown error"));
+          },
+        }
+      );
+      return;
+    }
   };
+
+  async function parseCsvFile(file: File): Promise<Record<string, number[]>> {
+    return new Promise((resolve, reject) => {
+      Papa.parse(file, {
+        header: true,
+        dynamicTyping: true,
+        skipEmptyLines: true,
+        complete: (results) => {
+          try {
+            const data = results.data as any[];
+            if (!data || data.length === 0) {
+              reject(new Error("CSV file is empty"));
+              return;
+            }
+            const firstRow = data[0];
+            const seasonColumns: string[] = Object.keys(firstRow).filter(
+              (key) => key.trim() !== ""
+            );
+            const parsedData: Record<string, number[]> = {};
+            data.forEach((row) => {
+              seasonColumns.forEach((season) => {
+                const value = Number(row[season]);
+                if (!parsedData[season]) parsedData[season] = [];
+                parsedData[season].push(isNaN(value) ? 0 : value);
+              });
+            });
+            resolve(parsedData);
+          } catch (err) {
+            reject(err);
+          }
+        },
+        error: (error) => {
+          reject(error);
+        },
+      });
+    });
+  }
 
   if (!isClient) {
     return <div>Loading...</div>;
@@ -330,8 +454,13 @@ const gridConnected = useSystemConfigStore(
                       variant="secondary"
                       onClick={handleSimulateGridAvailability}
                       className="w-full"
+                      disabled={isSimulating || simulationResult}
                     >
-                      Simulate Grid Availability
+                      {isSimulating
+                        ? "Simulating..."
+                        : simulationResult
+                        ? "Simulated!"
+                        : "Simulate Grid Availability"}
                     </Button>
                     {simulationResult && (
                       <p className="text-green-600 text-sm mt-2">
