@@ -321,6 +321,12 @@ export default function ResultsPage() {
               Resources
             </a>
           </nav>
+          <Button
+            className="ml-8 bg-white text-black border border-black hover:bg-gray-100"
+            onClick={() => (window.location.href = "/project-setup")}
+          >
+            Start Again
+          </Button>
         </div>
       </header>
 
