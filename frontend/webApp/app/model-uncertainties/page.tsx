@@ -26,7 +26,9 @@ export default function ModelUncertaintiesPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isClient, setIsClient] = useState(false);
   const [selectedModel, setSelectedModel] = useState("linear");
-  const [gridConnected, setGridConnected] = useState(false);
+const gridConnected = useSystemConfigStore(
+  (state) => state.config.enabled_components.grid_connection
+);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [uploadOrSimulate, setUploadOrSimulate] = useState<
     "upload" | "simulate"
@@ -59,7 +61,6 @@ export default function ModelUncertaintiesPage() {
     const file = event.target.files?.[0];
     if (file && file.type === "text/csv") {
       setUploadedFile(file);
-      setGridConnected(true); // If uploading grid availability, assume grid connected
     }
   };
 
