@@ -42,17 +42,56 @@ const COLOR_DICT: Record<string, string> = {
   "Lost Load (kWh)": "#FF0000",
   "Load Demand (kWh)": "#000000",
 };
+const PIE_COLORS = {
+  Investment: "#2E86DE", // Blue
+  Operation: "#27AE60", // Green (as requested)
+  Replacement: "#E74C3C", // Red
+};
 
-const CustomTooltip = ({ active, payload, label }: any) => {
+const renderCustomizedLabel = ({
+  cx,
+  cy,
+  midAngle,
+  innerRadius,
+  outerRadius,
+  percent,
+  name,
+  value,
+}) => {
+  const RADIAN = Math.PI / 180;
+  const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
+  const x = cx + radius * Math.cos(-midAngle * RADIAN);
+  const y = cy + radius * Math.sin(-midAngle * RADIAN);
+
+  // Only show label if percentage is meaningful (>5%)
+  if (percent < 0.05) return null;
+
+  return (
+    <text
+      x={x}
+      y={y}
+      fill="white"
+      textAnchor={x > cx ? "start" : "end"}
+      dominantBaseline="central"
+      fontSize="12"
+      fontWeight="bold"
+    >
+      {`${(percent * 100).toFixed(0)}%`}
+    </text>
+  );
+};
+
+// Custom tooltip
+const CustomPieTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
+    const data = payload[0];
     return (
       <div className="bg-white p-3 border border-gray-300 rounded shadow-lg">
-        <p className="font-semibold">{`Hour: ${label}`}</p>
-        {payload.map((entry: any, index: number) => (
-          <p key={index} style={{ color: entry.color }}>
-            {`${entry.name}: ${Math.abs(entry.value).toFixed(2)} kWh`}
-          </p>
-        ))}
+        <p className="font-semibold">{data.name}</p>
+        <p style={{ color: data.color }}>{`${data.value.toFixed(1)} kUSD`}</p>
+        <p className="text-sm text-gray-600">
+          {`${((data.value / data.payload.total) * 100).toFixed(1)}%`}
+        </p>
       </div>
     );
   }
@@ -72,7 +111,7 @@ export default function ResultsPage() {
     setLoading(true);
     setError(null);
     fetch(
-      `https://autarky-website-backend.onrender.com/results?project_id=${projectId}`,
+      `https://autarky-website-backend.onrender.com/results?project_id=1a480f84-c667-45aa-a885-926178b63266`
     )
       .then(async (res) => {
         if (!res.ok) throw new Error(await res.text());
@@ -156,98 +195,98 @@ export default function ResultsPage() {
     URL.revokeObjectURL(url);
   };
 
-function prepareStackedDispatchData(
-  seasonData: any,
-  options: {
-    onGrid: boolean;
-    allowGridExport: boolean;
-    lostLoad: boolean;
-    uncertainty: boolean;
+  function prepareStackedDispatchData(
+    seasonData: any,
+    options: {
+      onGrid: boolean;
+      allowGridExport: boolean;
+      lostLoad: boolean;
+      uncertainty: boolean;
+    }
+  ) {
+    const n = seasonData["Solar Production (kWh)"]?.length || 0;
+    const result = [];
+
+    let cumulativeOut = Array(n).fill(0);
+    let cumulativeIn = Array(n).fill(0);
+
+    for (let i = 0; i < n; i++) {
+      // Solar
+      const solar = seasonData["Solar Production (kWh)"]?.[i] ?? 0;
+      const generator = seasonData["Generator Production (kWh)"]?.[i] ?? 0;
+      const gridImport = seasonData["Grid Import (kWh)"]?.[i] ?? 0;
+      const gridExport = seasonData["Grid Export (kWh)"]?.[i] ?? 0;
+      const solarCurtail = seasonData["Solar Curtailment (kWh)"]?.[i] ?? 0;
+      const lostLoad = seasonData["Lost Load (kWh)"]?.[i] ?? 0;
+      const load = seasonData["Load Demand (kWh)"]?.[i] ?? 0; // Fixed this line
+
+      // Battery
+      const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
+      const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
+      const netBattery = batteryDischarge - batteryCharge;
+      const netDischarge = Math.max(netBattery, 0);
+      const netCharge = Math.max(-netBattery, 0);
+
+      // Cumulative stacking
+      let y0 = cumulativeOut[i];
+      let y1 = y0 + solar;
+      let y2 = y1 + netDischarge;
+      let y3 = y2 + generator;
+      let y4 = y3 + (options.onGrid ? gridImport : 0);
+      let y5 = y4 + (options.lostLoad ? lostLoad : 0);
+
+      let y0_in = -cumulativeIn[i];
+      let y1_in = y0_in - netCharge;
+      let y2_in =
+        y1_in - (options.onGrid && options.allowGridExport ? gridExport : 0);
+
+      result.push({
+        hour: i + 1, // Make sure hour starts from 1
+        solar0: y0,
+        solar1: y1,
+        batteryDischarge0: y1,
+        batteryDischarge1: y2,
+        generator0: y2,
+        generator1: y3,
+        gridImport0: y3,
+        gridImport1: y4,
+        lostLoad0: y4,
+        lostLoad1: y5,
+        batteryCharge0: y0_in,
+        batteryCharge1: y1_in,
+        gridExport0: y1_in,
+        gridExport1: y2_in,
+        load: load, // Add load demand for the line chart
+      });
+
+      // Update cumulative
+      cumulativeOut[i] = y5;
+      cumulativeIn[i] = -y2_in;
+    }
+    return result;
   }
-) {
-  const n = seasonData["Solar Production (kWh)"]?.length || 0;
-  const result = [];
 
-  let cumulativeOut = Array(n).fill(0);
-  let cumulativeIn = Array(n).fill(0);
+  function transformSeasonDataForDispatch(seasonData: any) {
+    if (!seasonData?.timestep) return [];
 
-  for (let i = 0; i < n; i++) {
-    // Solar
-    const solar = seasonData["Solar Production (kWh)"]?.[i] ?? 0;
-    const generator = seasonData["Generator Production (kWh)"]?.[i] ?? 0;
-    const gridImport = seasonData["Grid Import (kWh)"]?.[i] ?? 0;
-    const gridExport = seasonData["Grid Export (kWh)"]?.[i] ?? 0;
-    const solarCurtail = seasonData["Solar Curtailment (kWh)"]?.[i] ?? 0;
-    const lostLoad = seasonData["Lost Load (kWh)"]?.[i] ?? 0;
-    const load = seasonData["Load Demand (kWh)"]?.[i] ?? 0; // Fixed this line
+    return seasonData.timestep.map((t: number, i: number) => {
+      const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
+      const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
+      const batteryNet = batteryDischarge - batteryCharge;
 
-    // Battery
-    const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
-    const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
-    const netBattery = batteryDischarge - batteryCharge;
-    const netDischarge = Math.max(netBattery, 0);
-    const netCharge = Math.max(-netBattery, 0);
-
-    // Cumulative stacking
-    let y0 = cumulativeOut[i];
-    let y1 = y0 + solar;
-    let y2 = y1 + netDischarge;
-    let y3 = y2 + generator;
-    let y4 = y3 + (options.onGrid ? gridImport : 0);
-    let y5 = y4 + (options.lostLoad ? lostLoad : 0);
-
-    let y0_in = -cumulativeIn[i];
-    let y1_in = y0_in - netCharge;
-    let y2_in =
-      y1_in - (options.onGrid && options.allowGridExport ? gridExport : 0);
-
-    result.push({
-      hour: i + 1, // Make sure hour starts from 1
-      solar0: y0,
-      solar1: y1,
-      batteryDischarge0: y1,
-      batteryDischarge1: y2,
-      generator0: y2,
-      generator1: y3,
-      gridImport0: y3,
-      gridImport1: y4,
-      lostLoad0: y4,
-      lostLoad1: y5,
-      batteryCharge0: y0_in,
-      batteryCharge1: y1_in,
-      gridExport0: y1_in,
-      gridExport1: y2_in,
-      load: load, // Add load demand for the line chart
+      return {
+        hour: t,
+        solarProduction: seasonData["Solar Production (kWh)"]?.[i] ?? 0,
+        batteryDischarge: Math.max(0, batteryNet),
+        generatorProduction: seasonData["Generator Production (kWh)"]?.[i] ?? 0,
+        gridImport: seasonData["Grid Import (kWh)"]?.[i] ?? 0,
+        lostLoad: seasonData["Lost Load (kWh)"]?.[i] ?? 0,
+        batteryCharge: -Math.max(0, -batteryNet),
+        gridExport: -(seasonData["Grid Export (kWh)"]?.[i] ?? 0),
+        loadDemand: seasonData["Load Demand (kWh)"]?.[i] ?? 0,
+      };
     });
-
-    // Update cumulative
-    cumulativeOut[i] = y5;
-    cumulativeIn[i] = -y2_in;
   }
-  return result;
-}
-
- function transformSeasonDataForDispatch(seasonData: any) {
-  if (!seasonData?.timestep) return [];
-
-  return seasonData.timestep.map((t: number, i: number) => {
-    const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
-    const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
-    const batteryNet = batteryDischarge - batteryCharge;
-    
-    return {
-      hour: t,
-      solarProduction: seasonData["Solar Production (kWh)"]?.[i] ?? 0,
-      batteryDischarge: Math.max(0, batteryNet),
-      generatorProduction: seasonData["Generator Production (kWh)"]?.[i] ?? 0,
-      gridImport: seasonData["Grid Import (kWh)"]?.[i] ?? 0,
-      lostLoad: seasonData["Lost Load (kWh)"]?.[i] ?? 0,
-      batteryCharge: -Math.max(0, -batteryNet),
-      gridExport: -(seasonData["Grid Export (kWh)"]?.[i] ?? 0),
-      loadDemand: seasonData["Load Demand (kWh)"]?.[i] ?? 0, 
-    };
-  });
-}
 
   const stackedData = prepareStackedDispatchData(seasonData, {
     onGrid: true, // or from your config
@@ -332,46 +371,79 @@ function prepareStackedDispatchData(
               </div>
             </div>
             <h2 className="font-bold text-lg mb-2">Costs Breakdown</h2>
-            <div className="flex flex-col md:flex-row items-center gap-4">
-              <ResponsiveContainer width={220} height={220}>
-                <PieChart>
-                  <Pie
-                    data={pieData}
-                    dataKey="value"
-                    nameKey="name"
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={({ name, value }) =>
-                      `${name}: ${Number(value).toLocaleString()} kUSD`
-                    }
-                  >
-                    {pieData.map((entry, idx) => (
-                      <Cell
-                        key={`cell-${idx}`}
-                        fill={COLORS[idx % COLORS.length]}
-                      />
+            <div className="flex flex-col md:flex-row items-center gap-6">
+              <div className="flex-shrink-0">
+                <ResponsiveContainer width={280} height={280}>
+                  <PieChart>
+                    <Pie
+                      data={pieData}
+                      cx="50%"
+                      cy="50%"
+                      labelLine={false}
+                      label={renderCustomizedLabel}
+                      outerRadius={100}
+                      fill="#8884d8"
+                      dataKey="value"
+                      stroke="#fff"
+                      strokeWidth={2}
+                    >
+                      {pieData.map((entry, index) => (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={PIE_COLORS[entry.name] || PIE_COLORS.Investment}
+                        />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip content={<CustomPieTooltip />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="flex-1">
+                {/* Legend */}
+                <div className="mb-4">
+                  <h3 className="font-semibold mb-2">Cost Components</h3>
+                  <div className="space-y-2">
+                    {pieData.map((entry, index) => (
+                      <div key={entry.name} className="flex items-center gap-2">
+                        <div
+                          className="w-4 h-4 rounded"
+                          style={{
+                            backgroundColor:
+                              PIE_COLORS[entry.name] || PIE_COLORS.Investment,
+                          }}
+                        />
+                        <span className="text-sm">
+                          {entry.name}:{" "}
+                          <span className="font-semibold">
+                            {entry.value.toFixed(1)} kUSD
+                          </span>
+                        </span>
+                      </div>
                     ))}
-                  </Pie>
-                  <RechartsTooltip />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="text-sm space-y-1">
-                <div>
-                  Net Present Cost (kUSD):{" "}
-                  <span className="font-bold">{npc}</span>
+                  </div>
                 </div>
-                <div>
-                  Subsidies (share of CAPEX):{" "}
-                  <span className="font-bold">{subsidies} kUSD</span>
-                </div>
-                <div>
-                  Salvage Value (kUSD):{" "}
-                  <span className="font-bold">{salvage}</span>
-                </div>
-                <div>
-                  Levelized Cost of Energy (LCOE):{" "}
-                  <span className="font-bold">{LCOE} USD/kWh</span>
+
+                {/* Cost details */}
+                <div className="text-sm space-y-1 border-t pt-4">
+                  <div className="flex justify-between">
+                    <span>Net Present Cost:</span>
+                    <span className="font-bold">{npc.toFixed(1)} kUSD</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Subsidies:</span>
+                    <span className="font-bold">
+                      {subsidies.toFixed(1)} kUSD
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Salvage Value:</span>
+                    <span className="font-bold">{salvage.toFixed(1)} kUSD</span>
+                  </div>
+                  <div className="flex justify-between border-t pt-2">
+                    <span>LCOE:</span>
+                    <span className="font-bold">{LCOE.toFixed(3)} USD/kWh</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -400,94 +472,94 @@ function prepareStackedDispatchData(
                 ))}
               </select>
             </div>
-         
-<ResponsiveContainer width="100%" height={350}>
-  <ComposedChart data={stackedData}>
-    <XAxis dataKey="hour" />
-    <YAxis />
-    <RechartsTooltip />
-    <Legend />
-    {/* Solar */}
-    <Area
-      type="monotone"
-      dataKey={(d) => [d.solar0, d.solar1]}
-      stroke={COLOR_DICT["Solar Production (kWh)"]}
-      fill={COLOR_DICT["Solar Production (kWh)"]}
-      fillOpacity={0.5}
-      isRange
-      name="Solar Production"
-    />
-    {/* Battery Discharge */}
-    <Area
-      type="monotone"
-      dataKey={(d) => [d.batteryDischarge0, d.batteryDischarge1]}
-      stroke={COLOR_DICT["Battery"]}
-      fill={COLOR_DICT["Battery"]}
-      fillOpacity={0.5}
-      isRange
-      name="Battery Discharge"
-    />
-    {/* Generator */}
-    <Area
-      type="monotone"
-      dataKey={(d) => [d.generator0, d.generator1]}
-      stroke={COLOR_DICT["Generator Production (kWh)"]}
-      fill={COLOR_DICT["Generator Production (kWh)"]}
-      fillOpacity={0.5}
-      isRange
-      name="Generator"
-    />
-    {/* Grid Import */}
-    <Area
-      type="monotone"
-      dataKey={(d) => [d.gridImport0, d.gridImport1]}
-      stroke={COLOR_DICT["Grid Import (kWh)"]}
-      fill={COLOR_DICT["Grid Import (kWh)"]}
-      fillOpacity={0.5}
-      isRange
-      name="Grid Import"
-    />
-    {/* Lost Load */}
-    <Area
-      type="monotone"
-      dataKey={(d) => [d.lostLoad0, d.lostLoad1]}
-      stroke={COLOR_DICT["Lost Load (kWh)"]}
-      fill={COLOR_DICT["Lost Load (kWh)"]}
-      fillOpacity={0.5}
-      isRange
-      name="Lost Load"
-    />
-    {/* Battery Charge (negative, below axis) */}
-    <Area
-      type="monotone"
-      dataKey={(d) => [d.batteryCharge0, d.batteryCharge1]}
-      stroke={COLOR_DICT["Battery"]}
-      fill={COLOR_DICT["Battery"]}
-      fillOpacity={0.5}
-      isRange
-      name="Battery Charge"
-    />
-    {/* Grid Export (negative, below axis) */}
-    <Area
-      type="monotone"
-      dataKey={(d) => [d.gridExport0, d.gridExport1]}
-      stroke={COLOR_DICT["Grid Export (kWh)"]}
-      fill={COLOR_DICT["Grid Export (kWh)"]}
-      fillOpacity={0.5}
-      isRange
-      name="Grid Export"
-    />
-    {/* Load as line - THIS WILL NOW WORK */}
-    <Line
-      type="monotone"
-      dataKey="load"
-      stroke={COLOR_DICT["Load Demand (kWh)"]}
-      strokeWidth={3}
-      dot={false}
-      name="Load Demand"
-    />
-  </ComposedChart>
-</ResponsiveContainer>
+
+            <ResponsiveContainer width="100%" height={350}>
+              <ComposedChart data={stackedData}>
+                <XAxis dataKey="hour" />
+                <YAxis />
+                <RechartsTooltip />
+                <Legend />
+                {/* Solar */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.solar0, d.solar1]}
+                  stroke={COLOR_DICT["Solar Production (kWh)"]}
+                  fill={COLOR_DICT["Solar Production (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Solar Production"
+                />
+                {/* Battery Discharge */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.batteryDischarge0, d.batteryDischarge1]}
+                  stroke={COLOR_DICT["Battery"]}
+                  fill={COLOR_DICT["Battery"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Battery Discharge"
+                />
+                {/* Generator */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.generator0, d.generator1]}
+                  stroke={COLOR_DICT["Generator Production (kWh)"]}
+                  fill={COLOR_DICT["Generator Production (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Generator"
+                />
+                {/* Grid Import */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.gridImport0, d.gridImport1]}
+                  stroke={COLOR_DICT["Grid Import (kWh)"]}
+                  fill={COLOR_DICT["Grid Import (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Grid Import"
+                />
+                {/* Lost Load */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.lostLoad0, d.lostLoad1]}
+                  stroke={COLOR_DICT["Lost Load (kWh)"]}
+                  fill={COLOR_DICT["Lost Load (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Lost Load"
+                />
+                {/* Battery Charge (negative, below axis) */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.batteryCharge0, d.batteryCharge1]}
+                  stroke={COLOR_DICT["Battery"]}
+                  fill={COLOR_DICT["Battery"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Battery Charge"
+                />
+                {/* Grid Export (negative, below axis) */}
+                <Area
+                  type="monotone"
+                  dataKey={(d) => [d.gridExport0, d.gridExport1]}
+                  stroke={COLOR_DICT["Grid Export (kWh)"]}
+                  fill={COLOR_DICT["Grid Export (kWh)"]}
+                  fillOpacity={0.5}
+                  isRange
+                  name="Grid Export"
+                />
+                {/* Load as line - THIS WILL NOW WORK */}
+                <Line
+                  type="monotone"
+                  dataKey="load"
+                  stroke={COLOR_DICT["Load Demand (kWh)"]}
+                  strokeWidth={3}
+                  dot={false}
+                  name="Load Demand"
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
             <div className="mt-4 text-sm space-y-1">
               <div>
                 Renewable Penetration:{" "}
