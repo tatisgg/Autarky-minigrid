@@ -42,10 +42,11 @@ const COLOR_DICT: Record<string, string> = {
   "Lost Load (kWh)": "#FF0000",
   "Load Demand (kWh)": "#000000",
 };
+
 const PIE_COLORS = {
-  Investment: "#2E86DE", // Blue
-  Operation: "#27AE60", // Green (as requested)
-  Replacement: "#E74C3C", // Red
+  Investment: "#2E86DE",
+  Operation: "#27AE60",
+  Replacement: "#E74C3C",
 };
 
 const renderCustomizedLabel = ({
@@ -63,7 +64,6 @@ const renderCustomizedLabel = ({
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
 
-  // Only show label if percentage is meaningful (>5%)
   if (percent < 0.05) return null;
 
   return (
@@ -81,7 +81,6 @@ const renderCustomizedLabel = ({
   );
 };
 
-// Custom tooltip
 const CustomPieTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0];
@@ -104,34 +103,132 @@ export default function ResultsPage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
   const [selectedSeason, setSelectedSeason] =
-    useState<keyof typeof SEASON_LABELS>("season_3"); // Default to Summer
+    useState<keyof typeof SEASON_LABELS>("season_3");
+  const [debugInfo, setDebugInfo] = useState<any>(null);
 
   useEffect(() => {
-    if (!projectId) return;
+    console.log("🔍 Debug Info:");
+    console.log("projectId from store:", projectId);
+    
+    // Add debug info to state
+    setDebugInfo({
+      projectId,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent,
+    });
+
+    if (!projectId) {
+      console.warn("❌ No projectId found");
+      setError("No project ID found. Please start a new project.");
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
-    fetch(
-      `https://autarky-website-backend.onrender.com/results?project_id=1a480f84-c667-45aa-a885-926178b63266`
-    )
+    
+    console.log("🚀 Making API request...");
+    
+    // Build the URL
+    const url = `https://autarky-website-backend.onrender.com/results?project_id=${projectId}`;
+    console.log("📡 Request URL:", url);
+
+    fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        // Remove CORS headers - these must be set by the server, not client
+      },
+    })
       .then(async (res) => {
-        if (!res.ok) throw new Error(await res.text());
-        return res.json();
+        console.log("📬 Response received:");
+        console.log("Status:", res.status);
+        console.log("Status Text:", res.statusText);
+        console.log("Headers:", Object.fromEntries(res.headers.entries()));
+        
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error("❌ Error response:", errorText);
+          throw new Error(`HTTP ${res.status}: ${errorText}`);
+        }
+        
+        const responseText = await res.text();
+        console.log("📄 Raw response:", responseText);
+        
+        try {
+          const jsonData = JSON.parse(responseText);
+          console.log("✅ Parsed JSON:", jsonData);
+          return jsonData;
+        } catch (parseError) {
+          console.error("❌ JSON parse error:", parseError);
+          throw new Error(`Failed to parse JSON: ${parseError.message}`);
+        }
       })
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
+      .then((responseData) => {
+        console.log("🎉 Data received successfully:", responseData);
+        setData(responseData);
+      })
+      .catch((err) => {
+        console.error("💥 Fetch error:", err);
+        setError(err.message);
+      })
+      .finally(() => {
+        console.log("🏁 Request completed");
+        setLoading(false);
+      });
   }, [projectId]);
 
-  if (loading)
-    return <div className="p-12 text-center text-lg">Loading results...</div>;
-  if (error)
-    return <div className="p-12 text-center text-red-600">{error}</div>;
-  if (!data?.results)
+  if (loading) {
     return (
-      <div className="p-12 text-center text-gray-500">No results found.</div>
+      <div className="p-12 text-center">
+        <div className="text-lg mb-4">Loading results...</div>
+        {debugInfo && (
+          <div className="text-sm text-gray-600 bg-gray-100 p-4 rounded">
+            <div>Project ID: {debugInfo.projectId}</div>
+            <div>Timestamp: {debugInfo.timestamp}</div>
+            <div>Please check browser console for detailed logs</div>
+          </div>
+        )}
+      </div>
     );
+  }
 
-  // Parse data
+  if (error) {
+    return (
+      <div className="p-12 text-center">
+        <div className="text-red-600 mb-4 text-lg">Error: {error}</div>
+        {debugInfo && (
+          <div className="text-sm text-gray-600 bg-gray-100 p-4 rounded mb-4">
+            <div><strong>Debug Info:</strong></div>
+            <div>Project ID: {debugInfo.projectId}</div>
+            <div>Timestamp: {debugInfo.timestamp}</div>
+            <div>User Agent: {debugInfo.userAgent}</div>
+          </div>
+        )}
+        <Button
+          onClick={() => window.location.reload()}
+          className="bg-blue-500 hover:bg-blue-600 text-white"
+        >
+          Retry
+        </Button>
+      </div>
+    );
+  }
+
+  if (!data?.results) {
+    return (
+      <div className="p-12 text-center">
+        <div className="text-gray-500 mb-4">No results found.</div>
+        <div className="text-sm text-gray-600 bg-gray-100 p-4 rounded">
+          <div><strong>Response Data:</strong></div>
+          <pre>{JSON.stringify(data, null, 2)}</pre>
+        </div>
+      </div>
+    );
+  }
+
+  // Parse data (rest of your existing code remains the same)
   const sizing = data.results.sizing || {};
   const costs = data.results.costs || {};
   const operation = data.results.operation || {};
@@ -139,14 +236,12 @@ export default function ResultsPage() {
   const LCOE = data.results["LCOE[USD/kWh]"];
   const logs = data.logs || [];
 
-  // Pie chart data
   const pieData = [
     { name: "Investment", value: costs["CAPEX[kUSD]"] || 0 },
     { name: "Operation", value: costs["OPEX[kUSD]"] || 0 },
     { name: "Replacement", value: costs["Replacement[kUSD]"] || 0 },
   ];
 
-  // Dispatch chart data for selected season
   const seasonData = dispatch[selectedSeason];
   const chartData = transformSeasonDataForDispatch(seasonData);
 
@@ -157,7 +252,6 @@ export default function ResultsPage() {
     uncertainty: false,
   };
 
-  // Summary stats
   const renewablePenetration =
     operation?.["solar[MWh]"] && operation?.["generator[MWh]"]
       ? (
@@ -169,12 +263,10 @@ export default function ResultsPage() {
   const curtailment = operation?.["solar_curtailment"] ?? 0;
   const fuelConsumption = operation?.["fuel_liters"] ?? 0;
 
-  // Sizing values
   const solarKW = sizing?.solar_kw ?? 0;
   const batteryKWh = sizing?.battery_kwh ?? 0;
   const generatorKW = sizing?.generator_kw ?? 0;
 
-  // Costs
   const npc = costs["NPC[kUSD]"] ?? 0;
   const capex = costs["CAPEX[kUSD]"] ?? 0;
   const opex = costs["OPEX[kUSD]"] ?? 0;
@@ -182,7 +274,6 @@ export default function ResultsPage() {
   const salvage = costs["Salvage[kUSD]"] ?? 0;
   const subsidies = costs["Subsidies[kUSD]"] ?? 0;
 
-  // Download results
   const handleDownload = () => {
     const blob = new Blob([JSON.stringify(data, null, 2)], {
       type: "application/json",
@@ -211,23 +302,20 @@ export default function ResultsPage() {
     let cumulativeIn = Array(n).fill(0);
 
     for (let i = 0; i < n; i++) {
-      // Solar
       const solar = seasonData["Solar Production (kWh)"]?.[i] ?? 0;
       const generator = seasonData["Generator Production (kWh)"]?.[i] ?? 0;
       const gridImport = seasonData["Grid Import (kWh)"]?.[i] ?? 0;
       const gridExport = seasonData["Grid Export (kWh)"]?.[i] ?? 0;
       const solarCurtail = seasonData["Solar Curtailment (kWh)"]?.[i] ?? 0;
       const lostLoad = seasonData["Lost Load (kWh)"]?.[i] ?? 0;
-      const load = seasonData["Load Demand (kWh)"]?.[i] ?? 0; // Fixed this line
+      const load = seasonData["Load Demand (kWh)"]?.[i] ?? 0;
 
-      // Battery
       const batteryDischarge = seasonData["Battery Discharge (kWh)"]?.[i] ?? 0;
       const batteryCharge = seasonData["Battery Charge (kWh)"]?.[i] ?? 0;
       const netBattery = batteryDischarge - batteryCharge;
       const netDischarge = Math.max(netBattery, 0);
       const netCharge = Math.max(-netBattery, 0);
 
-      // Cumulative stacking
       let y0 = cumulativeOut[i];
       let y1 = y0 + solar;
       let y2 = y1 + netDischarge;
@@ -241,7 +329,7 @@ export default function ResultsPage() {
         y1_in - (options.onGrid && options.allowGridExport ? gridExport : 0);
 
       result.push({
-        hour: i + 1, // Make sure hour starts from 1
+        hour: i + 1,
         solar0: y0,
         solar1: y1,
         batteryDischarge0: y1,
@@ -256,10 +344,9 @@ export default function ResultsPage() {
         batteryCharge1: y1_in,
         gridExport0: y1_in,
         gridExport1: y2_in,
-        load: load, // Add load demand for the line chart
+        load: load,
       });
 
-      // Update cumulative
       cumulativeOut[i] = y5;
       cumulativeIn[i] = -y2_in;
     }
@@ -289,7 +376,7 @@ export default function ResultsPage() {
   }
 
   const stackedData = prepareStackedDispatchData(seasonData, {
-    onGrid: true, // or from your config
+    onGrid: true,
     allowGridExport: true,
     lostLoad: true,
     uncertainty: false,
@@ -344,7 +431,10 @@ export default function ResultsPage() {
         </div>
       </div>
 
-      {/* Main Content */}
+      {/* Debug Info Panel */}
+
+
+      {/* Rest of your existing JSX remains the same */}
       <main className="max-w-7xl mx-auto px-6 py-8">
         <h1 className="text-3xl font-bold mb-2">Results</h1>
         <p className="mb-6 max-w-3xl">
@@ -406,7 +496,6 @@ export default function ResultsPage() {
               </div>
 
               <div className="flex-1">
-                {/* Legend */}
                 <div className="mb-4">
                   <h3 className="font-semibold mb-2">Cost Components</h3>
                   <div className="space-y-2">
@@ -430,7 +519,6 @@ export default function ResultsPage() {
                   </div>
                 </div>
 
-                {/* Cost details */}
                 <div className="text-sm space-y-1 border-t pt-4">
                   <div className="flex justify-between">
                     <span>Net Present Cost:</span>
@@ -485,7 +573,6 @@ export default function ResultsPage() {
                 <YAxis />
                 <RechartsTooltip />
                 <Legend />
-                {/* Solar */}
                 <Area
                   type="monotone"
                   dataKey={(d) => [d.solar0, d.solar1]}
@@ -495,7 +582,6 @@ export default function ResultsPage() {
                   isRange
                   name="Solar Production"
                 />
-                {/* Battery Discharge */}
                 <Area
                   type="monotone"
                   dataKey={(d) => [d.batteryDischarge0, d.batteryDischarge1]}
@@ -505,7 +591,6 @@ export default function ResultsPage() {
                   isRange
                   name="Battery Discharge"
                 />
-                {/* Generator */}
                 <Area
                   type="monotone"
                   dataKey={(d) => [d.generator0, d.generator1]}
@@ -515,7 +600,6 @@ export default function ResultsPage() {
                   isRange
                   name="Generator"
                 />
-                {/* Grid Import */}
                 <Area
                   type="monotone"
                   dataKey={(d) => [d.gridImport0, d.gridImport1]}
@@ -525,7 +609,6 @@ export default function ResultsPage() {
                   isRange
                   name="Grid Import"
                 />
-                {/* Lost Load */}
                 <Area
                   type="monotone"
                   dataKey={(d) => [d.lostLoad0, d.lostLoad1]}
@@ -535,7 +618,6 @@ export default function ResultsPage() {
                   isRange
                   name="Lost Load"
                 />
-                {/* Battery Charge (negative, below axis) */}
                 <Area
                   type="monotone"
                   dataKey={(d) => [d.batteryCharge0, d.batteryCharge1]}
@@ -545,7 +627,6 @@ export default function ResultsPage() {
                   isRange
                   name="Battery Charge"
                 />
-                {/* Grid Export (negative, below axis) */}
                 <Area
                   type="monotone"
                   dataKey={(d) => [d.gridExport0, d.gridExport1]}
@@ -555,7 +636,6 @@ export default function ResultsPage() {
                   isRange
                   name="Grid Export"
                 />
-                {/* Load as line - THIS WILL NOW WORK */}
                 <Line
                   type="monotone"
                   dataKey="load"
@@ -584,7 +664,6 @@ export default function ResultsPage() {
             </div>
           </div>
         </div>
-        {/* Download Button */}
         <div className="flex justify-end mt-8">
           <Button
             className="bg-black hover:bg-gray-800 text-white text-lg px-8 py-3 rounded-lg"
@@ -593,7 +672,6 @@ export default function ResultsPage() {
             Download Results
           </Button>
         </div>
-        {/* Logs (optional, collapsible) */}
         <details className="mt-8 bg-gray-50 border rounded p-4 text-xs text-gray-700 max-h-64 overflow-auto">
           <summary className="cursor-pointer font-semibold">
             Show Optimization Logs
